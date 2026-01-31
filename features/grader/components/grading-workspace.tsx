@@ -1,13 +1,23 @@
 "use client";
 
 import { useState, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useTabStore } from "@/store/use-tab-store";
-import { PDFViewer } from "./pdf-viewer";
+// import { PDFViewer } from "./pdf-viewer"; // Can't import directly due to DOMMatrix error
 import { SubmissionList } from "./submission-list";
 import { StudentSubmission } from "@/types/grading";
-import { Upload, Sparkles } from "lucide-react";
+import { Upload, Sparkles, FileText } from "lucide-react"; // FileText moved to import
 import { Button } from "@/components/ui/button";
 import { gradeSubmission } from "@/lib/grading-service";
+
+const PDFViewer = dynamic(() => import("./pdf-viewer").then(mod => mod.PDFViewer), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-100/50 rounded-xl border border-gray-200">
+       <span className="text-gray-400">Loading PDF Engine...</span>
+    </div>
+  )
+});
 
 interface GradingWorkspaceProps {
   tabId: string;
@@ -130,11 +140,4 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   );
 }
 
-// Placeholder icon
-function FileText({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  );
-}
+
