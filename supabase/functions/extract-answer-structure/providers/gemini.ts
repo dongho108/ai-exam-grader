@@ -82,6 +82,7 @@ export class GeminiProvider {
       answers[parseInt(key, 10)] = value;
     }
     return {
+      title: parsed.title || "Untitled Exam",
       answers,
       totalQuestions: parsed.totalQuestions,
       extractedAt: Date.now()

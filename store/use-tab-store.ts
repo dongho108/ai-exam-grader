@@ -96,7 +96,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((t) =>
         t.id === id 
-          ? { ...t, answerKeyStructure: structure, status: 'ready' } // Sets to 'ready' after structure is added
+          ? { ...t, answerKeyStructure: structure, status: 'ready', title: structure.title || t.title } 
           : t
       ),
     })),

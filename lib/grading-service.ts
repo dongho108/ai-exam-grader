@@ -21,6 +21,7 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
     console.error('Extract Answer Structure Error:', error);
     // Fallback Mock with 0-1 normalized coordinates
     return {
+      title: "능률보카 실력 5,6 (Mock)",
       answers: {
         "1": { text: "A", x: 0.6, y: 0.12, page: 1 },
         "2": { text: "B", x: 0.15, y: 0.12, page: 1 },

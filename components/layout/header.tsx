@@ -37,7 +37,12 @@ export function Header() {
                 : "border-transparent bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 mt-1 h-9"
             )}
           >
-            <span className="truncate mr-2">{tab.title}</span>
+            <span className="truncate mr-2 flex items-center gap-1.5">
+              {tab.status === 'extracting' && (
+                <Plus className="h-3 w-3 animate-spin text-primary shrink-0" />
+              )}
+              {tab.status === 'extracting' ? 'Analysing...' : tab.title}
+            </span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
