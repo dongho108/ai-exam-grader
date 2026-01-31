@@ -26,6 +26,7 @@ export interface QuestionResult {
 
 export interface GradingResult {
   submissionId: string;
+  studentName?: string;
   score: {
     correct: number;
     total: number;

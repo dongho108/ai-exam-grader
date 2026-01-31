@@ -18,6 +18,7 @@ interface TabState {
   // Submission Actions
   addSubmission: (tabId: string, file: File) => void;
   updateSubmissionGrade: (tabId: string, submissionId: string, result: GradingResult) => void;
+  setSubmissionStatus: (tabId: string, submissionId: string, status: StudentSubmission['status']) => void;
   removeSubmission: (tabId: string, submissionId: string) => void;
 }
 
@@ -111,10 +112,22 @@ export const useTabStore = create<TabState>((set, get) => ({
             ? {
                 ...sub,
                 status: 'graded',
+                studentName: result.studentName || sub.studentName,
                 score: result.score,
                 results: result.results,
               }
             : sub
+        ),
+      },
+    }));
+  },
+
+  setSubmissionStatus: (tabId, submissionId, status) => {
+    set((state) => ({
+      submissions: {
+        ...state.submissions,
+        [tabId]: (state.submissions[tabId] || []).map((sub) =>
+          sub.id === submissionId ? { ...sub, status } : sub
         ),
       },
     }));

@@ -9,6 +9,7 @@ import { StudentSubmission } from "@/types/grading";
 import { Upload, Sparkles, FileText } from "lucide-react"; // FileText moved to import
 import { Button } from "@/components/ui/button";
 import { gradeSubmission } from "@/lib/grading-service";
+import { cn } from "@/lib/utils";
 
 const PDFViewer = dynamic(() => import("./pdf-viewer").then(mod => mod.PDFViewer), {
   ssr: false,
@@ -39,27 +40,31 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
     for (const file of Array.from(files)) {
       if (file.type !== 'application/pdf') continue;
       
-      // Add to store
-      addSubmission(tabId, file);
+      // 1. Add to store
+      const submissionId = Math.random().toString(36).substring(2, 9); // Pre-generate ID for tracking
+      addSubmission(tabId, file); // Note: addSubmission generates its own ID, so we need to find it or fix addSubmission
       
-      // Auto-grade
+      // Let's find the newly added submission
+      let latestSubmission = useTabStore.getState().submissions[tabId]?.find(s => s.fileName === file.name && s.status === 'pending');
+      
+      if (!latestSubmission) continue;
+
+      // 2. Set to grading state
+      useTabStore.getState().setSubmissionStatus(tabId, latestSubmission.id, 'grading');
+      
+      // 3. Perform Grading (including name extraction)
       setIsGrading(true);
       try {
         const result = await gradeSubmission(answerKeyFile, file);
         
-        // Find the submission we just added (last one)
-        // Note: In a real app, we'd use the ID returned by addSubmission
-        const currentSubmissions = useTabStore.getState().submissions[tabId] || [];
-        const latestSubmission = currentSubmissions.find(s => s.fileName === file.name && s.status === 'pending');
-        
-        if (latestSubmission) {
-          updateSubmissionGrade(tabId, latestSubmission.id, {
-            ...result,
-            submissionId: latestSubmission.id,
-          });
-        }
+        // 4. Update with final results
+        updateSubmissionGrade(tabId, latestSubmission.id, {
+          ...result,
+          submissionId: latestSubmission.id,
+        });
       } catch (error) {
         console.error('Grading failed:', error);
+        useTabStore.getState().setSubmissionStatus(tabId, latestSubmission.id, 'pending');
       } finally {
         setIsGrading(false);
       }
