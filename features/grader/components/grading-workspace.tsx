@@ -132,6 +132,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             
             <PDFViewer 
                 file={selectedSubmission ? selectedSubmission.fileRef : answerKeyFile} 
+                results={selectedSubmission?.results}
                 className="flex-1" 
             />
         </div>

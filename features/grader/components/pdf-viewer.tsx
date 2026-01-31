@@ -2,18 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { QuestionResult } from '@/types/grading';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
 interface PDFViewerProps {
   file: File | string;
+  results?: QuestionResult[];
   className?: string;
 }
 
-export function PDFViewer({ file, className }: PDFViewerProps) {
+export function PDFViewer({ file, results, className }: PDFViewerProps) {
   useEffect(() => {
     // Configure PDF worker client-side only
     pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -80,14 +82,49 @@ export function PDFViewer({ file, className }: PDFViewerProps) {
           }
           className="shadow-xl"
         >
-           {/* Render only visible page for performance in Stage 1 */}
-           <Page 
-             pageNumber={pageNumber} 
-             scale={scale} 
-             className="bg-white shadow-sm"
-             renderTextLayer={false} 
-             renderAnnotationLayer={false}
-           />
+           <div className="relative">
+              <Page 
+                pageNumber={pageNumber} 
+                scale={scale} 
+                className="bg-white shadow-sm"
+                renderTextLayer={false} 
+                renderAnnotationLayer={false}
+              />
+              
+              {/* Grading Overlay */}
+              {results && results.length > 0 && (
+                <div 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+                >
+                  {results.map((res, idx) => (
+                    res.position && (
+                      <div
+                        key={`${res.questionNumber}-${idx}`}
+                        className="absolute flex items-center justify-center translate-x-[-50%] translate-y-[-50%]"
+                        style={{
+                          left: `${res.position.x}px`,
+                          top: `${res.position.y}px`,
+                        }}
+                      >
+                        {res.isCorrect ? (
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-full border-[6px] border-red-500/80 animate-in zoom-in duration-300 shadow-[0_0_10px_rgba(239,68,68,0.2)]" />
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <X className="w-12 h-12 text-red-500 stroke-[5px] animate-in zoom-in duration-300 drop-shadow-sm" />
+                          </div>
+                        )}
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-white/90 px-1 rounded border border-gray-200 text-[10px] font-bold text-gray-600 whitespace-nowrap">
+                          #{res.questionNumber} {res.studentAnswer}
+                        </span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              )}
+           </div>
         </Document>
       </div>
     </div>
