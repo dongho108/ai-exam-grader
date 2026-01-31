@@ -16,7 +16,7 @@ interface TabState {
   setAnswerKeyFile: (id: string, file: File) => void;
   
   // Submission Actions
-  addSubmission: (tabId: string, file: File) => void;
+  addSubmission: (tabId: string, file: File, id?: string) => void;
   updateSubmissionGrade: (tabId: string, submissionId: string, result: GradingResult) => void;
   setSubmissionStatus: (tabId: string, submissionId: string, status: StudentSubmission['status']) => void;
   removeSubmission: (tabId: string, submissionId: string) => void;
@@ -85,9 +85,9 @@ export const useTabStore = create<TabState>((set, get) => ({
       ),
     })),
 
-  addSubmission: (tabId, file) => {
+  addSubmission: (tabId, file, id) => {
     const newSubmission: StudentSubmission = {
-      id: generateId(),
+      id: id || generateId(),
       studentName: file.name.replace('.pdf', '').replace(/_/g, ' '),
       fileName: file.name,
       fileRef: file,

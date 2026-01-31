@@ -40,31 +40,28 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
     for (const file of Array.from(files)) {
       if (file.type !== 'application/pdf') continue;
       
-      // 1. Add to store
-      const submissionId = Math.random().toString(36).substring(2, 9); // Pre-generate ID for tracking
-      addSubmission(tabId, file); // Note: addSubmission generates its own ID, so we need to find it or fix addSubmission
+      // 1. Generate a fixed ID for this new submission
+      const submissionId = Math.random().toString(36).substring(2, 9);
       
-      // Let's find the newly added submission
-      let latestSubmission = useTabStore.getState().submissions[tabId]?.find(s => s.fileName === file.name && s.status === 'pending');
+      // 2. Add to store with the ID
+      addSubmission(tabId, file, submissionId);
       
-      if (!latestSubmission) continue;
-
-      // 2. Set to grading state
-      useTabStore.getState().setSubmissionStatus(tabId, latestSubmission.id, 'grading');
+      // 3. Set to grading state using the ID
+      useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'grading');
       
-      // 3. Perform Grading (including name extraction)
+      // 4. Perform Grading (including name extraction)
       setIsGrading(true);
       try {
         const result = await gradeSubmission(answerKeyFile, file);
         
-        // 4. Update with final results
-        updateSubmissionGrade(tabId, latestSubmission.id, {
+        // 5. Update with final results (including the extracted studentName)
+        updateSubmissionGrade(tabId, submissionId, {
           ...result,
-          submissionId: latestSubmission.id,
+          submissionId: submissionId,
         });
       } catch (error) {
         console.error('Grading failed:', error);
-        useTabStore.getState().setSubmissionStatus(tabId, latestSubmission.id, 'pending');
+        useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'pending');
       } finally {
         setIsGrading(false);
       }
