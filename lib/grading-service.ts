@@ -19,19 +19,19 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
     return data.data as AnswerKeyStructure;
   } catch (error) {
     console.error('Extract Answer Structure Error:', error);
-    // Fallback Mock with coordinates
+    // Fallback Mock with 0-1 normalized coordinates
     return {
       answers: {
-        "1": { text: "A", x: 600, y: 120 },
-        "2": { text: "B", x: 150, y: 120 },
-        "3": { text: "C", x: 600, y: 160 },
-        "4": { text: "D", x: 150, y: 160 },
-        "5": { text: "A", x: 600, y: 200 },
-        "6": { text: "B", x: 150, y: 200 },
-        "7": { text: "C", x: 600, y: 240 },
-        "8": { text: "D", x: 150, y: 240 },
-        "9": { text: "A", x: 600, y: 280 },
-        "10": { text: "B", x: 150, y: 280 }
+        "1": { text: "A", x: 0.6, y: 0.12, page: 1 },
+        "2": { text: "B", x: 0.15, y: 0.12, page: 1 },
+        "3": { text: "C", x: 0.6, y: 0.16, page: 1 },
+        "4": { text: "D", x: 0.15, y: 0.16, page: 1 },
+        "5": { text: "A", x: 0.6, y: 0.20, page: 1 },
+        "6": { text: "B", x: 0.15, y: 0.20, page: 1 },
+        "7": { text: "C", x: 0.6, y: 0.24, page: 1 },
+        "8": { text: "D", x: 0.15, y: 0.24, page: 1 },
+        "9": { text: "A", x: 0.6, y: 0.28, page: 1 },
+        "10": { text: "B", x: 0.15, y: 0.28, page: 1 }
       },
       totalQuestions: 10
     };
@@ -85,23 +85,17 @@ export function calculateGradingResult(
     
     if (isCorrect) correctCount++;
 
-    // USE COORDINATES FROM THE ANSWER KEY WITH MICROSCOPIC CALIBRATION
-    // AI vision models often have a slight top-left bias. 
-    // Adding minor offsets (+0.5% X, +1.3% Y) to center the marks perfectly.
-    const X_OFFSET = 0.005; 
-    const Y_OFFSET = 0.013;
-    
-    const xPos = (answerKeyData.x / 1000) + X_OFFSET;
-    const yPos = (answerKeyData.y / 1000) + Y_OFFSET;
-
+    // Use 0-1 normalized coordinates directly from AI extraction
+    // No conversion needed - coordinates are already in the correct format
     results.push({
       questionNumber: parseInt(qNum),
       studentAnswer,
       correctAnswer: answerKeyData.text,
       isCorrect,
       position: {
-        x: Math.min(Math.max(xPos, 0), 1),
-        y: Math.min(Math.max(yPos, 0), 1),
+        x: Math.min(Math.max(answerKeyData.x, 0), 1),
+        y: Math.min(Math.max(answerKeyData.y, 0), 1),
+        page: answerKeyData.page || 1, // Default to page 1 for backward compatibility
       }
     });
   });

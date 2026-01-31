@@ -21,7 +21,7 @@ export interface QuestionResult {
   studentAnswer: string;
   correctAnswer: string;
   isCorrect: boolean;
-  position?: { x: number; y: number }; // Position on PDF for overlay
+  position?: { x: number; y: number; page: number }; // Position on PDF for overlay (0-1 normalized coordinates)
 }
 
 export interface GradingResult {
@@ -36,7 +36,7 @@ export interface GradingResult {
 }
 
 export interface AnswerKeyStructure {
-  answers: Record<string, { text: string; x: number; y: number }>;
+  answers: Record<string, { text: string; x: number; y: number; page: number }>;
   totalQuestions: number;
 }
 
