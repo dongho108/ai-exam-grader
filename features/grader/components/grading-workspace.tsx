@@ -31,9 +31,9 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const tabSubmissions = submissions[tabId] || [];
+  const [isDragActive, setIsDragActive] = useState(false);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
     for (const file of Array.from(files)) {
@@ -48,8 +48,9 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
         const result = await gradeSubmission(answerKeyFile, file);
         
         // Find the submission we just added (last one)
-        const newSubmissions = submissions[tabId] || [];
-        const latestSubmission = newSubmissions[newSubmissions.length - 1];
+        // Note: In a real app, we'd use the ID returned by addSubmission
+        const currentSubmissions = useTabStore.getState().submissions[tabId] || [];
+        const latestSubmission = currentSubmissions.find(s => s.fileName === file.name && s.status === 'pending');
         
         if (latestSubmission) {
           updateSubmissionGrade(tabId, latestSubmission.id, {
@@ -63,24 +64,65 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
         setIsGrading(false);
       }
     }
+  };
 
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      processFiles(e.target.files);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
     }
   };
 
   return (
-    <div className="flex h-full gap-4">
+    <div className="flex h-full gap-4 overflow-hidden">
       {/* Left Sidebar: Submission List */}
-      <div className="w-80 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden shrink-0">
-        <SubmissionList
-          tabId={tabId}
-          onSelectSubmission={setSelectedSubmission}
-          selectedSubmissionId={selectedSubmission?.id}
-        />
+      <div 
+        className={cn(
+          "relative w-80 bg-white rounded-xl shadow-sm border-2 transition-all duration-300 overflow-hidden shrink-0 flex flex-col h-full",
+          isDragActive ? "border-primary bg-primary/5 scale-[1.01] shadow-xl" : "border-gray-200"
+        )}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        <div className="flex-1 overflow-hidden relative">
+          <SubmissionList
+            tabId={tabId}
+            onSelectSubmission={setSelectedSubmission}
+            selectedSubmissionId={selectedSubmission?.id}
+          />
+          
+          {/* Drag Overlay */}
+          {isDragActive && (
+            <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center text-primary animate-in fade-in duration-200">
+               <Upload className="w-12 h-12 mb-2 animate-bounce" />
+               <p className="font-bold text-lg">Drop PDFs here</p>
+            </div>
+          )}
+        </div>
         
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
           <input
             ref={fileInputRef}
             type="file"
@@ -91,18 +133,18 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
           />
           <Button
             variant="cta"
-            className="w-full gap-2"
+            className="w-full gap-2 py-6 text-base font-bold shadow-lg shadow-primary/20"
             onClick={() => fileInputRef.current?.click()}
             disabled={isGrading}
           >
             {isGrading ? (
               <>
-                <Sparkles className="w-4 h-4 animate-spin" />
+                <Sparkles className="w-5 h-5 animate-spin" />
                 Grading...
               </>
             ) : (
               <>
-                <Upload className="w-4 h-4" />
+                <Upload className="w-5 h-5" />
                 Upload Student Papers
               </>
             )}
