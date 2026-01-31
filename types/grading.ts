@@ -36,7 +36,7 @@ export interface GradingResult {
 }
 
 export interface AnswerKeyStructure {
-  answers: Record<string, string>;
+  answers: Record<string, { text: string; x: number; y: number }>;
   totalQuestions: number;
 }
 

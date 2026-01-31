@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 import { convertPdfToImages } from './pdf-utils';
 
 /**
- * Extracts the correct answers from the Answer Key PDF
+ * Extracts the correct answers AND their coordinates from the Answer Key PDF
  */
 export async function extractAnswerStructure(file: File): Promise<AnswerKeyStructure> {
   try {
@@ -19,11 +19,19 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
     return data.data as AnswerKeyStructure;
   } catch (error) {
     console.error('Extract Answer Structure Error:', error);
-    // Fallback Mock
+    // Fallback Mock with coordinates
     return {
       answers: {
-        "1": "A", "2": "B", "3": "C", "4": "D", "5": "A",
-        "6": "B", "7": "C", "8": "D", "9": "A", "10": "B"
+        "1": { text: "A", x: 600, y: 120 },
+        "2": { text: "B", x: 150, y: 120 },
+        "3": { text: "C", x: 600, y: 160 },
+        "4": { text: "D", x: 150, y: 160 },
+        "5": { text: "A", x: 600, y: 200 },
+        "6": { text: "B", x: 150, y: 200 },
+        "7": { text: "C", x: 600, y: 240 },
+        "8": { text: "D", x: 150, y: 240 },
+        "9": { text: "A", x: 600, y: 280 },
+        "10": { text: "B", x: 150, y: 280 }
       },
       totalQuestions: 10
     };
@@ -31,7 +39,7 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
 }
 
 /**
- * Extracts the student's answers from the Exam PDF
+ * Extracts ONLY the student's text answers and name from the Exam PDF
  */
 export async function extractExamStructure(file: File): Promise<StudentExamStructure> {
   try {
@@ -47,7 +55,7 @@ export async function extractExamStructure(file: File): Promise<StudentExamStruc
     return data.data as StudentExamStructure;
   } catch (error) {
     console.error('Extract Exam Structure Error:', error);
-    // Fallback Mock
+    // Fallback Mock (Text only)
     return {
       studentName: "허재인",
       answers: {
@@ -60,7 +68,7 @@ export async function extractExamStructure(file: File): Promise<StudentExamStruc
 }
 
 /**
- * Local grading logic: compares student answers with the answer key
+ * Local grading logic: compares student answers using coordinates from the answer key
  */
 export function calculateGradingResult(
   submissionId: string,
@@ -71,25 +79,36 @@ export function calculateGradingResult(
   let correctCount = 0;
 
   // Compare each question
-  Object.entries(answerKey.answers).forEach(([qNum, correctAnswer]) => {
+  Object.entries(answerKey.answers).forEach(([qNum, answerKeyData]) => {
     const studentAnswer = studentExam.answers[qNum] || "(미작성)";
-    const isCorrect = studentAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+    const isCorrect = studentAnswer.trim().toLowerCase() === answerKeyData.text.trim().toLowerCase();
     
     if (isCorrect) correctCount++;
+
+    // USE COORDINATES FROM THE ANSWER KEY WITH MICROSCOPIC CALIBRATION
+    // AI vision models often have a slight top-left bias. 
+    // Adding minor offsets (+0.5% X, +1.3% Y) to center the marks perfectly.
+    const X_OFFSET = 0.005; 
+    const Y_OFFSET = 0.013;
+    
+    const xPos = (answerKeyData.x / 1000) + X_OFFSET;
+    const yPos = (answerKeyData.y / 1000) + Y_OFFSET;
 
     results.push({
       questionNumber: parseInt(qNum),
       studentAnswer,
-      correctAnswer,
+      correctAnswer: answerKeyData.text,
       isCorrect,
       position: {
-        x: 50 + (parseInt(qNum) % 2) * 250, // Mock positions as AI structure extraction doesn't provide them yet
-        y: 100 + Math.floor((parseInt(qNum) - 1) / 2) * 40,
+        x: Math.min(Math.max(xPos, 0), 1),
+        y: Math.min(Math.max(yPos, 0), 1),
       }
     });
   });
 
-  const total = answerKey.totalQuestions;
+  // DERIVE TOTAL COUNT FROM ACTUAL ANSWERS IN THE ANSWER KEY
+  // This ensures that even if a template has 50 slots, we only grade based on the 40 that were actually filled.
+  const total = Object.keys(answerKey.answers).length;
   const percentage = (correctCount / total) * 100;
 
   return {
@@ -105,8 +124,7 @@ export function calculateGradingResult(
 }
 
 /**
- * Main entrance (Compatibility with existing code)
- * Note: GradingWorkspace will be updated to call individual steps, but we keep this for legacy refs if any
+ * Legacy support
  */
 export async function gradeSubmission(
   answerKeyFile: File,

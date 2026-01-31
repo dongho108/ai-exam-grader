@@ -93,32 +93,29 @@ export function PDFViewer({ file, results, className }: PDFViewerProps) {
               
               {/* Grading Overlay */}
               {results && results.length > 0 && (
-                <div 
-                  className="absolute inset-0 pointer-events-none"
-                  style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
-                >
+                <div className="absolute inset-0 pointer-events-none">
                   {results.map((res, idx) => (
                     res.position && (
                       <div
                         key={`${res.questionNumber}-${idx}`}
-                        className="absolute flex items-center justify-center translate-x-[-50%] translate-y-[-50%]"
+                        className="absolute flex items-center justify-center translate-x-[-50%] translate-y-[-50%] animate-in zoom-in-50 duration-500"
                         style={{
-                          left: `${res.position.x}px`,
-                          top: `${res.position.y}px`,
+                          left: `${res.position.x * 100}%`,
+                          top: `${res.position.y * 100}%`,
                         }}
                       >
                         {res.isCorrect ? (
                           <div className="relative">
-                            <div className="w-12 h-12 rounded-full border-[6px] border-red-500/80 animate-in zoom-in duration-300 shadow-[0_0_10px_rgba(239,68,68,0.2)]" />
+                            <div className="w-7 h-7 rounded-full border-[3px] border-red-500/80 animate-in zoom-in duration-300" />
                           </div>
                         ) : (
-                          <div className="relative">
-                            <X className="w-12 h-12 text-red-500 stroke-[5px] animate-in zoom-in duration-300 drop-shadow-sm" />
+                          <div className="relative flex flex-col items-center">
+                            <X className="w-7 h-7 text-red-500 stroke-[4px] animate-in zoom-in duration-300" />
+                            <div className="absolute top-full mt-1 bg-red-500/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap animate-in fade-in slide-in-from-top-1">
+                              {res.correctAnswer}
+                            </div>
                           </div>
                         )}
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-white/90 px-1 rounded border border-gray-200 text-[10px] font-bold text-gray-600 whitespace-nowrap">
-                          #{res.questionNumber} {res.studentAnswer}
-                        </span>
                       </div>
                     )
                   ))}

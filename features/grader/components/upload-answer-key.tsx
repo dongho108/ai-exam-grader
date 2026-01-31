@@ -8,25 +8,23 @@ import { extractAnswerStructure } from "@/lib/grading-service";
 import { Loader2 } from "lucide-react";
 
 export function UploadAnswerKey() {
-  const { activeTabId, setAnswerKeyFile, setAnswerKeyStructure } = useTabStore();
-  const [isExtracting, setIsExtracting] = useState(false);
+  const { activeTabId, tabs, setAnswerKeyFile, setAnswerKeyStructure } = useTabStore();
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const isExtracting = activeTab?.status === 'extracting';
   
   const handleFileSelect = async (file: File) => {
     if (activeTabId) {
-        setIsExtracting(true);
         try {
-            // 1. Save the file ref first
+            // 1. Save the file ref first (Sets status to 'extracting')
             setAnswerKeyFile(activeTabId, file);
             
             // 2. Perform AI Extraction
             const structure = await extractAnswerStructure(file);
             
-            // 3. Save the structure to store
+            // 3. Save the structure to store (Sets status to 'ready')
             setAnswerKeyStructure(activeTabId, structure);
         } catch (error) {
             console.error("Extraction failed:", error);
-        } finally {
-            setIsExtracting(false);
         }
     }
   };

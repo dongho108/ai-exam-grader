@@ -16,7 +16,7 @@ export default function Home() {
       
       <main className="flex-1 overflow-hidden relative p-4">
         {activeTab ? (
-           activeTab.status === 'idle' ? (
+           activeTab.status === 'idle' || activeTab.status === 'extracting' ? (
              <UploadAnswerKey />
            ) : activeTab.status === 'ready' && activeTab.answerKeyFile?.fileRef ? (
              <GradingWorkspace 

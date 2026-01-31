@@ -80,8 +80,8 @@ export const useTabStore = create<TabState>((set, get) => ({
         t.id === id
           ? {
               ...t,
-              status: 'ready',
-              title: file.name.replace('.pdf', ''), // Auto-set title from filename
+              status: 'extracting', // Changed from 'ready' to 'extracting'
+              title: file.name.replace('.pdf', ''),
               answerKeyFile: {
                 name: file.name,
                 size: file.size,
@@ -95,7 +95,9 @@ export const useTabStore = create<TabState>((set, get) => ({
   setAnswerKeyStructure: (id, structure) =>
     set((state) => ({
       tabs: state.tabs.map((t) =>
-        t.id === id ? { ...t, answerKeyStructure: structure } : t
+        t.id === id 
+          ? { ...t, answerKeyStructure: structure, status: 'ready' } // Sets to 'ready' after structure is added
+          : t
       ),
     })),
 
