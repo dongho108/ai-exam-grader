@@ -8,7 +8,7 @@ import { SubmissionList } from "./submission-list";
 import { StudentSubmission } from "@/types/grading";
 import { Upload, Sparkles, FileText } from "lucide-react"; // FileText moved to import
 import { Button } from "@/components/ui/button";
-import { gradeSubmission } from "@/lib/grading-service";
+import { extractExamStructure, calculateGradingResult } from "@/lib/grading-service";
 import { cn } from "@/lib/utils";
 
 const PDFViewer = dynamic(() => import("./pdf-viewer").then(mod => mod.PDFViewer), {
@@ -37,28 +37,32 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
+    // Get the pre-extracted answer key structure for this tab
+    const currentTab = useTabStore.getState().tabs.find(t => t.id === tabId);
+    const answerKeyStructure = currentTab?.answerKeyStructure;
+
+    if (!answerKeyStructure) {
+        console.error("Answer Key structure not found for this tab");
+        return;
+    }
+
     for (const file of Array.from(files)) {
       if (file.type !== 'application/pdf') continue;
       
-      // 1. Generate a fixed ID for this new submission
       const submissionId = Math.random().toString(36).substring(2, 9);
-      
-      // 2. Add to store with the ID
       addSubmission(tabId, file, submissionId);
-      
-      // 3. Set to grading state using the ID
       useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'grading');
       
-      // 4. Perform Grading (including name extraction)
       setIsGrading(true);
       try {
-        const result = await gradeSubmission(answerKeyFile, file);
+        // 1. AI Extraction of student answers/name
+        const examStructure = await extractExamStructure(file);
         
-        // 5. Update with final results (including the extracted studentName)
-        updateSubmissionGrade(tabId, submissionId, {
-          ...result,
-          submissionId: submissionId,
-        });
+        // 2. Local Grading Result calculation
+        const result = calculateGradingResult(submissionId, answerKeyStructure, examStructure);
+        
+        // 3. Update store
+        updateSubmissionGrade(tabId, submissionId, result);
       } catch (error) {
         console.error('Grading failed:', error);
         useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'pending');

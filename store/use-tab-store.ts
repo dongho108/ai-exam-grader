@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { ExamSession } from '@/types';
-import { StudentSubmission, GradingResult } from '@/types/grading';
+import { StudentSubmission, GradingResult, AnswerKeyStructure } from '@/types/grading';
+
+// Extend ExamSession to include answerKeyFile and answerKeyStructure
+export interface StoreExamSession extends ExamSession {
+  answerKeyFile?: { name: string; size: number; fileRef: File };
+  answerKeyStructure?: AnswerKeyStructure | null;
+}
 
 interface TabState {
-  tabs: ExamSession[];
+  tabs: StoreExamSession[];
   activeTabId: string | null;
   submissions: Record<string, StudentSubmission[]>; // tabId -> submissions
 
@@ -14,6 +20,7 @@ interface TabState {
   setActiveTab: (id: string) => void;
   updateTabTitle: (id: string, title: string) => void;
   setAnswerKeyFile: (id: string, file: File) => void;
+  setAnswerKeyStructure: (id: string, structure: AnswerKeyStructure) => void;
   
   // Submission Actions
   addSubmission: (tabId: string, file: File, id?: string) => void;
@@ -30,7 +37,7 @@ export const useTabStore = create<TabState>((set, get) => ({
   submissions: {},
 
   addTab: () => {
-    const newTab: ExamSession = {
+    const newTab: StoreExamSession = {
       id: generateId(),
       title: 'New Exam',
       createdAt: Date.now(),
@@ -85,13 +92,20 @@ export const useTabStore = create<TabState>((set, get) => ({
       ),
     })),
 
+  setAnswerKeyStructure: (id, structure) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === id ? { ...t, answerKeyStructure: structure } : t
+      ),
+    })),
+
   addSubmission: (tabId, file, id) => {
     const newSubmission: StudentSubmission = {
       id: id || generateId(),
       studentName: file.name.replace('.pdf', '').replace(/_/g, ' '),
       fileName: file.name,
       fileRef: file,
-      status: 'pending',
+      status: 'pending' as const,
       uploadedAt: Date.now(),
     };
 
@@ -111,7 +125,7 @@ export const useTabStore = create<TabState>((set, get) => ({
           sub.id === submissionId
             ? {
                 ...sub,
-                status: 'graded',
+                status: 'graded' as const,
                 studentName: result.studentName || sub.studentName,
                 score: result.score,
                 results: result.results,
@@ -137,8 +151,9 @@ export const useTabStore = create<TabState>((set, get) => ({
     set((state) => ({
       submissions: {
         ...state.submissions,
-        [tabId]: (state.submissions[tabId] || []).filter((sub) => sub.id !== submissionId),
+        [tabId]: (state.submissions[tabId] || []).filter(sub => sub.id !== submissionId)
       },
     }));
   },
 }));
+

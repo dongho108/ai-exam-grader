@@ -34,3 +34,14 @@ export interface GradingResult {
   };
   results: QuestionResult[];
 }
+
+export interface AnswerKeyStructure {
+  answers: Record<string, string>;
+  totalQuestions: number;
+}
+
+export interface StudentExamStructure {
+  studentName: string;
+  answers: Record<string, string>;
+  totalQuestions: number;
+}
