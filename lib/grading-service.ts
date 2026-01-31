@@ -38,8 +38,8 @@ export async function gradeSubmission(
   // Extract name (Simulated extraction)
   let studentName = studentFile.name.replace('.pdf', '').replace(/_/g, ' ');
   
-  // Demo specific: If the filename is generic, use the name from the provided image
-  if (studentFile.name.includes('시험지')) {
+  // Demo specific: Robust matching for Korean characters (NFC/NFD issues)
+  if (studentFile.name.includes('시험')) {
     studentName = '허재인';
   }
 

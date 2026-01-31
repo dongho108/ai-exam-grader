@@ -98,6 +98,11 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
     }
   };
 
+  // Always get the fresh submission data from the store to avoid stale state in the viewer
+  const currentSubmission = selectedSubmission 
+    ? tabSubmissions.find(s => s.id === selectedSubmission.id) || selectedSubmission
+    : null;
+
   return (
     <div className="flex h-full gap-4 overflow-hidden">
       {/* Left Sidebar: Submission List */}
@@ -115,7 +120,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
           <SubmissionList
             tabId={tabId}
             onSelectSubmission={setSelectedSubmission}
-            selectedSubmissionId={selectedSubmission?.id}
+            selectedSubmissionId={currentSubmission?.id}
           />
           
           {/* Drag Overlay */}
@@ -163,11 +168,11 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             <div className="flex items-center justify-between px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200">
               <div>
                 <h3 className="font-semibold text-gray-700">
-                    {selectedSubmission ? selectedSubmission.studentName : "Answer Key (Reference)"}
+                    {currentSubmission ? currentSubmission.studentName : "Answer Key (Reference)"}
                 </h3>
-                {selectedSubmission ? (
+                {currentSubmission ? (
                   <p className="text-sm text-gray-500">
-                    Score: {selectedSubmission.score?.correct}/{selectedSubmission.score?.total} ({Math.round(selectedSubmission.score?.percentage || 0)}%)
+                    Score: {currentSubmission.score?.correct}/{currentSubmission.score?.total} ({Math.round(currentSubmission.score?.percentage || 0)}%)
                   </p>
                 ) : (
                     <p className="text-sm text-gray-500">
@@ -178,8 +183,8 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             </div>
             
             <PDFViewer 
-                file={selectedSubmission ? selectedSubmission.fileRef : answerKeyFile} 
-                results={selectedSubmission?.results}
+                file={currentSubmission ? currentSubmission.fileRef : answerKeyFile} 
+                results={currentSubmission?.results}
                 className="flex-1" 
             />
         </div>
