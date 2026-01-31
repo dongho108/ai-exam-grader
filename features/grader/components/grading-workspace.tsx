@@ -112,32 +112,30 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
 
       {/* Main Area: PDF Viewer */}
       <div className="flex-1 min-w-0">
-        {selectedSubmission ? (
-          <div className="h-full flex flex-col gap-2">
+        <div className="h-full flex flex-col gap-2">
             <div className="flex items-center justify-between px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200">
               <div>
-                <h3 className="font-semibold text-gray-700">{selectedSubmission.studentName}</h3>
-                {selectedSubmission.score && (
+                <h3 className="font-semibold text-gray-700">
+                    {selectedSubmission ? selectedSubmission.studentName : "Answer Key (Reference)"}
+                </h3>
+                {selectedSubmission ? (
                   <p className="text-sm text-gray-500">
-                    Score: {selectedSubmission.score.correct}/{selectedSubmission.score.total} ({Math.round(selectedSubmission.score.percentage)}%)
+                    Score: {selectedSubmission.score?.correct}/{selectedSubmission.score?.total} ({Math.round(selectedSubmission.score?.percentage || 0)}%)
                   </p>
+                ) : (
+                    <p className="text-sm text-gray-500">
+                        This is the correct answer sheet used for grading.
+                    </p>
                 )}
               </div>
             </div>
-            <PDFViewer file={selectedSubmission.fileRef} className="flex-1" />
-          </div>
-        ) : (
-          <div className="h-full flex items-center justify-center bg-white rounded-xl border-2 border-dashed border-gray-200">
-            <div className="text-center text-gray-400">
-              <FileText className="w-16 h-16 mx-auto mb-4 opacity-20" />
-              <p className="text-lg font-medium">Select a submission to view</p>
-              <p className="text-sm mt-1">or upload student papers to begin</p>
-            </div>
-          </div>
-        )}
+            
+            <PDFViewer 
+                file={selectedSubmission ? selectedSubmission.fileRef : answerKeyFile} 
+                className="flex-1" 
+            />
+        </div>
       </div>
     </div>
   );
 }
-
-
