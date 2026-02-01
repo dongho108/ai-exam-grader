@@ -22,6 +22,8 @@ export function SubmissionList({ tabId, onSelectSubmission, selectedSubmissionId
         return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case 'grading':
         return <Clock className="w-4 h-4 text-yellow-500 animate-pulse" />;
+      case 'queued':
+        return <Clock className="w-4 h-4 text-blue-400" />;
       case 'pending':
         return <AlertCircle className="w-4 h-4 text-gray-400" />;
     }
@@ -87,7 +89,9 @@ export function SubmissionList({ tabId, onSelectSubmission, selectedSubmissionId
                         selectedSubmissionId === submission.id ? "text-primary" : "text-gray-700"
                       )}>
                         {submission.status === 'grading' ? (
-                          <span className="text-primary animate-pulse">분석 중...</span>
+                          <span className="text-yellow-600 animate-pulse">분석 중...</span>
+                        ) : submission.status === 'queued' ? (
+                          <span className="text-blue-500">대기 중...</span>
                         ) : (
                           submission.studentName
                         )}

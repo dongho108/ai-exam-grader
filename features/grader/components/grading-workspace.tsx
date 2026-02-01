@@ -26,51 +26,87 @@ interface GradingWorkspaceProps {
 }
 
 export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps) {
-  const { addSubmission, updateSubmissionGrade, submissions } = useTabStore();
+  const { addSubmission, updateSubmissionGrade, submissions, setSubmissionStatus } = useTabStore();
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
   const [isGrading, setIsGrading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Queue system for sequential processing
+  const processingRef = useRef<{
+    queue: string[];
+    isProcessing: boolean;
+  }>({ queue: [], isProcessing: false });
+
   const tabSubmissions = submissions[tabId] || [];
   const [isDragActive, setIsDragActive] = useState(false);
 
-  const processFiles = async (files: FileList | File[]) => {
-    if (!files || files.length === 0) return;
+  // Process next item in the queue
+  const processNext = async () => {
+    if (processingRef.current.isProcessing) return;
+    if (processingRef.current.queue.length === 0) {
+      setIsGrading(false);
+      return;
+    }
 
     // Get the pre-extracted answer key structure for this tab
     const currentTab = useTabStore.getState().tabs.find(t => t.id === tabId);
     const answerKeyStructure = currentTab?.answerKeyStructure;
 
     if (!answerKeyStructure) {
-        console.error("Answer Key structure not found for this tab");
-        return;
+      console.error("Answer Key structure not found for this tab");
+      return;
     }
 
+    processingRef.current.isProcessing = true;
+    setIsGrading(true);
+
+    const submissionId = processingRef.current.queue.shift()!;
+    setSubmissionStatus(tabId, submissionId, 'grading');
+
+    try {
+      // Get file reference from store
+      const submission = useTabStore.getState().submissions[tabId]?.find(s => s.id === submissionId);
+      if (!submission) throw new Error('Submission not found');
+
+      // 1. AI Extraction of student answers/name
+      const examStructure = await extractExamStructure(submission.fileRef);
+
+      // 2. Local Grading Result calculation
+      const result = calculateGradingResult(submissionId, answerKeyStructure, examStructure);
+
+      // 3. Update store
+      updateSubmissionGrade(tabId, submissionId, result);
+    } catch (error) {
+      console.error('Grading failed:', error);
+      setSubmissionStatus(tabId, submissionId, 'pending');
+    } finally {
+      processingRef.current.isProcessing = false;
+      // Process next in queue
+      processNext();
+    }
+  };
+
+  const processFiles = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    const submissionIds: string[] = [];
+
+    // 1. Add all files to store immediately with 'queued' status
     for (const file of Array.from(files)) {
-      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
       if (!allowedTypes.includes(file.type)) continue;
-      
+
       const submissionId = Math.random().toString(36).substring(2, 9);
       addSubmission(tabId, file, submissionId);
-      useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'grading');
-      
-      setIsGrading(true);
-      try {
-        // 1. AI Extraction of student answers/name
-        const examStructure = await extractExamStructure(file);
-        
-        // 2. Local Grading Result calculation
-        const result = calculateGradingResult(submissionId, answerKeyStructure, examStructure);
-        
-        // 3. Update store
-        updateSubmissionGrade(tabId, submissionId, result);
-      } catch (error) {
-        console.error('Grading failed:', error);
-        useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'pending');
-      } finally {
-        setIsGrading(false);
-      }
+      setSubmissionStatus(tabId, submissionId, 'queued');
+      submissionIds.push(submissionId);
     }
+
+    // 2. Add to processing queue
+    processingRef.current.queue.push(...submissionIds);
+
+    // 3. Start processing (if not already processing)
+    processNext();
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

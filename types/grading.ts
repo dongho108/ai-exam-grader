@@ -6,7 +6,7 @@ export interface StudentSubmission {
   studentName: string;
   fileName: string;
   fileRef: File;
-  status: 'pending' | 'grading' | 'graded';
+  status: 'pending' | 'queued' | 'grading' | 'graded';
   score?: {
     correct: number;
     total: number;
