@@ -69,42 +69,113 @@ export async function extractExamStructure(file: File): Promise<StudentExamStruc
 }
 
 /**
- * Local grading logic: compares student answers using coordinates from the answer key
+ * Normalizes text for comparison by removing whitespace, special characters, and converting to lowercase.
  */
-export function calculateGradingResult(
+function normalizeText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '') // Remove all whitespace
+    .replace(/[()[\]{}]/g, ''); // Remove parentheses and brackets
+}
+
+/**
+ * Checks if a student's answer matches any of the possible correct answers.
+ */
+function isAnswerCorrect(studentAnswer: string, correctAnswer: string): boolean {
+  const normStudent = normalizeText(studentAnswer);
+  
+  // Split correct answer by common delimiters (/, ,) to support multiple valid answers
+  const possibleAnswers = correctAnswer.split(/[\\/|,]/).map(a => normalizeText(a));
+  
+  return possibleAnswers.some(ans => ans === normStudent && ans !== "");
+}
+
+/**
+ * Local grading logic: compares student answers using coordinates from the answer key.
+ * Uses AI semantic fallback only for Korean answers.
+ */
+export async function calculateGradingResult(
   submissionId: string,
   answerKey: AnswerKeyStructure,
   studentExam: StudentExamStructure
-): GradingResult {
+): Promise<GradingResult> {
   const results: QuestionResult[] = [];
+  const failedQuestions: { id: string; studentAnswer: string; correctAnswer: string }[] = [];
   let correctCount = 0;
 
-  // Compare each question
+  // 1. Initial Local Match Pass
   Object.entries(answerKey.answers).forEach(([qNum, answerKeyData]) => {
-    const studentAnswer = studentExam.answers[qNum] || "(미작성)";
-    const isCorrect = studentAnswer.trim().toLowerCase() === answerKeyData.text.trim().toLowerCase();
-    
-    if (isCorrect) correctCount++;
+    const studentAnswerRaw = studentExam.answers[qNum] || "(미작성)";
+    const isLocalMatch = studentAnswerRaw !== "(미작성)" && studentAnswerRaw !== "(판독불가)" && isAnswerCorrect(studentAnswerRaw, answerKeyData.text);
 
-    // Use 0-1 normalized coordinates directly from AI extraction
-    // No conversion needed - coordinates are already in the correct format
-    results.push({
-      questionNumber: parseInt(qNum),
-      studentAnswer,
-      correctAnswer: answerKeyData.text,
-      isCorrect,
-      position: {
-        x: Math.min(Math.max(answerKeyData.x, 0), 1),
-        y: Math.min(Math.max(answerKeyData.y, 0), 1),
-        page: answerKeyData.page || 1, // Default to page 1 for backward compatibility
+    if (isLocalMatch) {
+      correctCount++;
+      results.push({
+        questionNumber: parseInt(qNum),
+        studentAnswer: studentAnswerRaw,
+        correctAnswer: answerKeyData.text,
+        isCorrect: true,
+        position: {
+          x: Math.min(Math.max(answerKeyData.x, 0), 1),
+          y: Math.min(Math.max(answerKeyData.y, 0), 1),
+          page: answerKeyData.page || 1,
+        }
+      });
+    } else {
+      // Collect for AI batch if candidate for semantic check
+      const isCandidate = studentAnswerRaw !== "(미작성)" && studentAnswerRaw !== "(판독불가)";
+      
+      // 언어 판별: 정답에 한글이 포함되어 있는지 확인
+      const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(answerKeyData.text);
+      
+      // 한글 해석 문제인 경우에만 AI 의미 채도(Semantic Check) 후보로 등록
+      if (isCandidate && hasKorean) {
+        failedQuestions.push({ id: qNum, studentAnswer: studentAnswerRaw, correctAnswer: answerKeyData.text });
       }
-    });
+      
+      results.push({
+        questionNumber: parseInt(qNum),
+        studentAnswer: studentAnswerRaw,
+        correctAnswer: answerKeyData.text,
+        isCorrect: false, // 기본값은 false, AI가 승인하면 나중에 업데이트됨
+        position: {
+          x: Math.min(Math.max(answerKeyData.x, 0), 1),
+          y: Math.min(Math.max(answerKeyData.y, 0), 1),
+          page: answerKeyData.page || 1,
+        }
+      });
+    }
   });
 
-  // DERIVE TOTAL COUNT FROM ACTUAL ANSWERS IN THE ANSWER KEY
-  // This ensures that even if a template has 50 slots, we only grade based on the 40 that were actually filled.
+  // 2. AI Semantic Batch Check (Fallback for Korean answers)
+  if (failedQuestions.length > 0) {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-semantic-grading', {
+        body: { questions: failedQuestions }
+      });
+
+      if (!error && data.success) {
+        const aiResults: { id: string; isCorrect: boolean; reason: string }[] = data.data;
+        aiResults.forEach(aiResult => {
+          if (aiResult.isCorrect) {
+            const questionIdx = results.findIndex(r => r.questionNumber === parseInt(aiResult.id));
+            if (questionIdx !== -1) {
+              results[questionIdx].isCorrect = true;
+              correctCount++;
+              console.log(`AI Semantic Match [Q${aiResult.id}]: "${results[questionIdx].studentAnswer}" -> Correct (${aiResult.reason})`);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Batch semantic grading failed:', error);
+    }
+  }
+
+  // DERIVE TOTAL COUNT
   const total = Object.keys(answerKey.answers).length;
-  const percentage = (correctCount / total) * 100;
+  const percentage = total > 0 ? (correctCount / total) * 100 : 0;
 
   return {
     submissionId,
@@ -127,5 +198,5 @@ export async function gradeSubmission(
 ): Promise<GradingResult> {
   const answerStructure = await extractAnswerStructure(answerKeyFile);
   const examStructure = await extractExamStructure(studentFile);
-  return calculateGradingResult('temp-id', answerStructure, examStructure);
+  return await calculateGradingResult('temp-id', answerStructure, examStructure);
 }
