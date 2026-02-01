@@ -37,12 +37,12 @@ export function UploadZone({
     
     const allowedTypes = accept.split(",").map(t => t.trim());
     if (!allowedTypes.includes(file.type)) {
-      setError("Only PDF and image files (JPG, PNG) are allowed.");
+      setError("PDF와 이미지 파일(JPG, PNG)만 허용됩니다.");
       return;
     }
 
     if (file.size > maxSizeMB * 1024 * 1024) {
-      setError(`File size must be less than ${maxSizeMB}MB.`);
+      setError(`파일 크기는 ${maxSizeMB}MB 이하여야 합니다.`);
       return;
     }
 
@@ -105,10 +105,10 @@ export function UploadZone({
 
           <div className="space-y-1">
             <h3 className={cn("text-xl font-bold transition-colors", isDragActive ? "text-primary" : "text-gray-700")}>
-              {error ? "Upload Failed" : isDragActive ? "Drop file here" : "Click or drag file"}
+              {error ? "업로드 실패" : isDragActive ? "여기에 파일을 놓으세요" : "클릭하거나 파일을 드래그하세요"}
             </h3>
             <p className="text-sm text-gray-400 max-w-xs mx-auto">
-              {error || `Upload your Answer Key (PDF or Image, Max ${maxSizeMB}MB)`}
+              {error || `정답지 업로드 (PDF 또는 이미지, 최대 ${maxSizeMB}MB)`}
             </p>
           </div>
           

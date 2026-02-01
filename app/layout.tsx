@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
-import { Fira_Code, Fira_Sans } from "next/font/google";
+import { Noto_Sans_KR, Fira_Code } from "next/font/google";
 import "./globals.css";
 
-const firaSans = Fira_Sans({
-  variable: "--font-fira-sans",
+const notoSansKR = Noto_Sans_KR({
+  variable: "--font-noto-sans-kr",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500", "700"],
 });
 
 const firaCode = Fira_Code({
   variable: "--font-fira-code",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
-  title: "AI Exam Grader",
-  description: "Automated exam grading service for teachers",
+  title: "AI 채점기",
+  description: "교사를 위한 AI 자동 채점 서비스",
 };
 
 export default function RootLayout({
@@ -25,9 +25,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body
-        className={`${firaSans.variable} ${firaCode.variable} antialiased bg-[#ECFEFF] text-[#164E63]`}
+        className={`${notoSansKR.variable} ${firaCode.variable} antialiased bg-[#ECFEFF] text-[#164E63]`}
       >
         {children}
       </body>

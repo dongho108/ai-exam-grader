@@ -15,7 +15,7 @@ const PDFViewer = dynamic(() => import("./pdf-viewer").then(mod => mod.PDFViewer
   ssr: false,
   loading: () => (
     <div className="h-full flex items-center justify-center bg-gray-100/50 rounded-xl border border-gray-200">
-       <span className="text-gray-400">Loading PDF Engine...</span>
+       <span className="text-gray-400">PDF 엔진 로딩 중...</span>
     </div>
   )
 });
@@ -129,7 +129,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
           {isDragActive && (
             <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center text-primary animate-in fade-in duration-200">
                <Upload className="w-12 h-12 mb-2 animate-bounce" />
-               <p className="font-bold text-lg">Drop files here</p>
+               <p className="font-bold text-lg">여기에 파일을 놓으세요</p>
             </div>
           )}
         </div>
@@ -152,12 +152,12 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             {isGrading ? (
               <>
                 <Sparkles className="w-5 h-5 animate-spin" />
-                Grading...
+                채점 중...
               </>
             ) : (
               <>
                 <Upload className="w-5 h-5" />
-                Upload Student Papers
+                학생 답안 업로드
               </>
             )}
           </Button>
@@ -170,15 +170,15 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             <div className="flex items-center justify-between px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200">
               <div>
                 <h3 className="font-semibold text-gray-700">
-                    {currentSubmission ? currentSubmission.studentName : "Answer Key (Reference)"}
+                    {currentSubmission ? currentSubmission.studentName : "정답지 (참조)"}
                 </h3>
                 {currentSubmission ? (
                   <p className="text-sm text-gray-500">
-                    Score: {currentSubmission.score?.correct}/{currentSubmission.score?.total} ({Math.round(currentSubmission.score?.percentage || 0)}%)
+                    점수: {currentSubmission.score?.correct}/{currentSubmission.score?.total} ({Math.round(currentSubmission.score?.percentage || 0)}%)
                   </p>
                 ) : (
                     <p className="text-sm text-gray-500">
-                        This is the correct answer sheet used for grading.
+                        채점에 사용되는 정답지입니다.
                     </p>
                 )}
               </div>

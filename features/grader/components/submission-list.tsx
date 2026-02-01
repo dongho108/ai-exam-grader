@@ -30,8 +30,8 @@ export function SubmissionList({ tabId, onSelectSubmission, selectedSubmissionId
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="p-4 border-b border-gray-200">
-        <h3 className="font-semibold text-gray-700">Exam Workspace</h3>
-        <p className="text-xs text-gray-400 mt-1">{tabSubmissions.length} papers uploaded</p>
+        <h3 className="font-semibold text-gray-700">시험 작업공간</h3>
+        <p className="text-xs text-gray-400 mt-1">{tabSubmissions.length}개 답안 업로드됨</p>
       </div>
 
       {/* Answer Key Selector - Fixed at the top */}
@@ -49,23 +49,23 @@ export function SubmissionList({ tabId, onSelectSubmission, selectedSubmissionId
           <FileText className="w-5 h-5" />
         </div>
         <div>
-          <h4 className="font-bold text-sm text-gray-700">Answer Key</h4>
-          <p className="text-[10px] text-primary/70 font-medium uppercase tracking-wider">Reference Sheet</p>
+          <h4 className="font-bold text-sm text-gray-700">정답지</h4>
+          <p className="text-[10px] text-primary/70 font-medium uppercase tracking-wider">참조 시트</p>
         </div>
       </div>
 
       {/* Student List Section */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 py-2 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
-           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Student Papers</span>
-           <span className="text-[10px] font-medium text-gray-400">{tabSubmissions.length} Total</span>
+           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">학생 답안지</span>
+           <span className="text-[10px] font-medium text-gray-400">총 {tabSubmissions.length}개</span>
         </div>
         
         {tabSubmissions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-gray-400 opacity-60">
             <Clock className="w-10 h-10 mb-2 stroke-[1.5px]" />
-            <p className="text-xs">No submissions yet</p>
-            <p className="text-[10px] mt-1">Drag student PDFs here</p>
+            <p className="text-xs">아직 제출된 답안이 없습니다</p>
+            <p className="text-[10px] mt-1">학생 답안 PDF를 여기에 드래그하세요</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -87,7 +87,7 @@ export function SubmissionList({ tabId, onSelectSubmission, selectedSubmissionId
                         selectedSubmissionId === submission.id ? "text-primary" : "text-gray-700"
                       )}>
                         {submission.status === 'grading' ? (
-                          <span className="text-primary animate-pulse">Analyzing...</span>
+                          <span className="text-primary animate-pulse">분석 중...</span>
                         ) : (
                           submission.studentName
                         )}

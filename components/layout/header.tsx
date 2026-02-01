@@ -21,7 +21,7 @@ export function Header() {
       {/* Brand Icon or Logo Area */}
       <div className="mr-4 flex items-center gap-2 px-2 text-primary font-bold">
         <Globe className="h-5 w-5" />
-        <span className="hidden sm:inline-block">AI Grader</span>
+        <span className="hidden sm:inline-block">AI 채점기</span>
       </div>
 
       {/* Tabs Container */}
@@ -41,7 +41,7 @@ export function Header() {
               {tab.status === 'extracting' && (
                 <Plus className="h-3 w-3 animate-spin text-primary shrink-0" />
               )}
-              {tab.status === 'extracting' ? 'Analysing...' : tab.title}
+              {tab.status === 'extracting' ? '분석 중...' : tab.title}
             </span>
             <button
               onClick={(e) => {
@@ -68,7 +68,7 @@ export function Header() {
         <button
           onClick={addTab}
           className="ml-1 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-primary transition-colors mb-1"
-          aria-label="New Exam"
+          aria-label="새 시험"
         >
           <Plus className="h-5 w-5" />
         </button>

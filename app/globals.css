@@ -6,8 +6,8 @@
   --color-primary: var(--primary);
   --color-secondary: var(--secondary);
   --color-cta: var(--cta);
-  
-  --font-sans: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --font-sans: var(--font-noto-sans-kr), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-fira-code), ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -22,9 +22,9 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-fira-sans), sans-serif;
+  font-family: var(--font-noto-sans-kr), sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-fira-code), monospace;
+  font-family: var(--font-noto-sans-kr), sans-serif;
 }
