@@ -1,13 +1,13 @@
 import { GradingResult, QuestionResult, AnswerKeyStructure, StudentExamStructure } from '@/types/grading';
 import { supabase } from './supabase';
-import { convertPdfToImages } from './pdf-utils';
+import { fileToImages } from './file-utils';
 
 /**
  * Extracts the correct answers AND their coordinates from the Answer Key PDF
  */
 export async function extractAnswerStructure(file: File): Promise<AnswerKeyStructure> {
   try {
-    const images = await convertPdfToImages(file);
+    const images = await fileToImages(file);
     
     const { data, error } = await supabase.functions.invoke('extract-answer-structure', {
       body: { images }
@@ -44,7 +44,7 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
  */
 export async function extractExamStructure(file: File): Promise<StudentExamStructure> {
   try {
-    const images = await convertPdfToImages(file);
+    const images = await fileToImages(file);
     
     const { data, error } = await supabase.functions.invoke('extract-exam-structure', {
       body: { images }

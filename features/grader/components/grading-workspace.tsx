@@ -47,7 +47,8 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
     }
 
     for (const file of Array.from(files)) {
-      if (file.type !== 'application/pdf') continue;
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+      if (!allowedTypes.includes(file.type)) continue;
       
       const submissionId = Math.random().toString(36).substring(2, 9);
       addSubmission(tabId, file, submissionId);
@@ -128,7 +129,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
           {isDragActive && (
             <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center text-primary animate-in fade-in duration-200">
                <Upload className="w-12 h-12 mb-2 animate-bounce" />
-               <p className="font-bold text-lg">Drop PDFs here</p>
+               <p className="font-bold text-lg">Drop files here</p>
             </div>
           )}
         </div>
@@ -137,7 +138,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/pdf"
+            accept="application/pdf, image/jpeg, image/png"
             multiple
             className="hidden"
             onChange={handleFileUpload}

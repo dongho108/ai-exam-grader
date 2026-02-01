@@ -14,7 +14,7 @@ interface UploadZoneProps {
 
 export function UploadZone({ 
   onFileSelect, 
-  accept = "application/pdf", 
+  accept = "application/pdf, image/jpeg, image/png", 
   maxSizeMB = 10,
   className 
 }: UploadZoneProps) {
@@ -35,8 +35,9 @@ export function UploadZone({
   const validateAndUpload = useCallback((file: File) => {
     setError(null);
     
-    if (accept === "application/pdf" && file.type !== "application/pdf") {
-      setError("Only PDF files are allowed.");
+    const allowedTypes = accept.split(",").map(t => t.trim());
+    if (!allowedTypes.includes(file.type)) {
+      setError("Only PDF and image files (JPG, PNG) are allowed.");
       return;
     }
 
@@ -107,14 +108,14 @@ export function UploadZone({
               {error ? "Upload Failed" : isDragActive ? "Drop file here" : "Click or drag file"}
             </h3>
             <p className="text-sm text-gray-400 max-w-xs mx-auto">
-              {error || `Upload your Answer Key PDF (Max ${maxSizeMB}MB)`}
+              {error || `Upload your Answer Key (PDF or Image, Max ${maxSizeMB}MB)`}
             </p>
           </div>
           
           {!error && (
              <div className="flex gap-3 pt-2">
                 <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-100 text-xs font-medium text-gray-500 group-hover:bg-gray-200 transition-colors">
-                    <FileType className="w-3.5 h-3.5" /> PDF Only
+                    <FileType className="w-3.5 h-3.5" /> PDF, JPG, PNG
                 </span>
              </div>
           )}
