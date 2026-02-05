@@ -5,8 +5,9 @@ import dynamic from "next/dynamic";
 import { useTabStore } from "@/store/use-tab-store";
 // import { PDFViewer } from "./pdf-viewer"; // Can't import directly due to DOMMatrix error
 import { SubmissionList } from "./submission-list";
+import { GradingResultPanel } from "./grading-result-panel";
 import { StudentSubmission } from "@/types/grading";
-import { Upload, Sparkles, FileText } from "lucide-react"; // FileText moved to import
+import { Upload, Sparkles, FileText, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { extractExamStructure, calculateGradingResult } from "@/lib/grading-service";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   const { addSubmission, updateSubmissionGrade, submissions, setSubmissionStatus } = useTabStore();
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
   const [isGrading, setIsGrading] = useState(false);
+  const [viewMode, setViewMode] = useState<'pdf' | 'result'>('result');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Queue system for sequential processing
@@ -72,7 +74,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       const examStructure = await extractExamStructure(submission.fileRef);
 
       // 2. Local Grading Result calculation
-      const result = calculateGradingResult(submissionId, answerKeyStructure, examStructure);
+      const result = await calculateGradingResult(submissionId, answerKeyStructure, examStructure);
 
       // 3. Update store
       updateSubmissionGrade(tabId, submissionId, result);
@@ -200,9 +202,10 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
         </div>
       </div>
 
-      {/* Main Area: PDF Viewer */}
+      {/* Main Area: PDF Viewer or Grading Results */}
       <div className="flex-1 min-w-0">
         <div className="h-full flex flex-col gap-2">
+            {/* Header with Tab Buttons */}
             <div className="flex items-center justify-between px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200">
               <div>
                 <h3 className="font-semibold text-gray-700">
@@ -218,13 +221,49 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
                     </p>
                 )}
               </div>
+
+              {/* Tab Buttons - 학생 선택 시에만 표시 */}
+              {currentSubmission && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setViewMode('pdf')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      viewMode === 'pdf'
+                        ? "bg-primary text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    )}
+                  >
+                    <FileText className="w-4 h-4" />
+                    PDF 보기
+                  </button>
+                  <button
+                    onClick={() => setViewMode('result')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      viewMode === 'result'
+                        ? "bg-primary text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    )}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    채점 결과
+                  </button>
+                </div>
+              )}
             </div>
-            
-            <PDFViewer 
-                file={currentSubmission ? currentSubmission.fileRef : answerKeyFile} 
-                results={currentSubmission?.results}
-                className="flex-1" 
-            />
+
+            {/* Content Area - 탭에 따라 전환 */}
+            {currentSubmission && viewMode === 'result' ? (
+              <div className="flex-1 rounded-xl border border-gray-200 shadow-sm overflow-hidden bg-white">
+                <GradingResultPanel submission={currentSubmission} />
+              </div>
+            ) : (
+              <PDFViewer
+                  file={currentSubmission ? currentSubmission.fileRef : answerKeyFile}
+                  className="flex-1"
+              />
+            )}
         </div>
       </div>
     </div>
