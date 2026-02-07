@@ -21,6 +21,7 @@ export interface QuestionResult {
   studentAnswer: string;
   correctAnswer: string;
   isCorrect: boolean;
+  isEdited?: boolean;           // Track manual edits by teacher
   position?: { x: number; y: number; page: number }; // Position on PDF for overlay (0-1 normalized coordinates)
 }
 

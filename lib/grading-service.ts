@@ -82,7 +82,7 @@ function normalizeText(text: string): string {
 /**
  * Checks if a student's answer matches any of the possible correct answers.
  */
-function isAnswerCorrect(studentAnswer: string, correctAnswer: string): boolean {
+export function isAnswerCorrect(studentAnswer: string, correctAnswer: string): boolean {
   const normStudent = normalizeText(studentAnswer);
   
   // Split correct answer by common delimiters (/, ,) to support multiple valid answers
@@ -200,3 +200,67 @@ export async function gradeSubmission(
   const examStructure = await extractExamStructure(studentFile);
   return await calculateGradingResult('temp-id', answerStructure, examStructure);
 }
+
+/**
+ * Recalculates grading result after manual answer edit.
+ * Pure synchronous function - no AI calls, only local text matching.
+ */
+export function recalculateAfterEdit(
+  submissionId: string,
+  results: QuestionResult[],
+  editedQuestionNumber: number,
+  newStudentAnswer: string,
+  studentName?: string
+): GradingResult {
+  const updatedResults = results.map((result) => {
+    if (result.questionNumber !== editedQuestionNumber) return result;
+    return {
+      ...result,
+      studentAnswer: newStudentAnswer,
+      isCorrect: isAnswerCorrect(newStudentAnswer, result.correctAnswer),
+      isEdited: true,
+    };
+  });
+
+  const correct = updatedResults.filter((r) => r.isCorrect).length;
+  const total = updatedResults.length;
+
+  return {
+    submissionId,
+    studentName,
+    score: { correct, total, percentage: total > 0 ? (correct / total) * 100 : 0 },
+    results: updatedResults,
+  };
+}
+
+/**
+ * Toggles the correct/incorrect status of a specific question.
+ * Allows teachers to manually override grading results.
+ */
+export function toggleCorrectStatus(
+  submissionId: string,
+  results: QuestionResult[],
+  questionNumber: number,
+  newIsCorrect: boolean,
+  studentName?: string
+): GradingResult {
+  const updatedResults = results.map((result) => {
+    if (result.questionNumber !== questionNumber) return result;
+    return {
+      ...result,
+      isCorrect: newIsCorrect,
+      isEdited: true,
+    };
+  });
+
+  const correct = updatedResults.filter((r) => r.isCorrect).length;
+  const total = updatedResults.length;
+
+  return {
+    submissionId,
+    studentName,
+    score: { correct, total, percentage: total > 0 ? (correct / total) * 100 : 0 },
+    results: updatedResults,
+  };
+}
+

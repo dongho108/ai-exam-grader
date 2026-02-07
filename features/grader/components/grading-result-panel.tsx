@@ -1,16 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { StudentSubmission, QuestionResult } from "@/types/grading";
-import { Check, X, ClipboardList } from "lucide-react";
+import { Check, X, ClipboardList, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DiffHighlight } from "./diff-highlight";
 
 interface GradingResultPanelProps {
   submission: StudentSubmission | null;
   className?: string;
+  onAnswerEdit?: (questionNumber: number, newAnswer: string) => void;
+  onCorrectToggle?: (questionNumber: number, isCorrect: boolean) => void;
 }
 
-export function GradingResultPanel({ submission, className }: GradingResultPanelProps) {
+export function GradingResultPanel({ submission, className, onAnswerEdit, onCorrectToggle }: GradingResultPanelProps) {
+  const [editingQuestion, setEditingQuestion] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+
   // 빈 상태: submission이 null
   if (!submission) {
     return (
@@ -38,6 +44,41 @@ export function GradingResultPanel({ submission, className }: GradingResultPanel
   }
 
   const { score, results, studentName } = submission;
+
+  const startEditing = (questionNumber: number, currentAnswer: string) => {
+    setEditingQuestion(questionNumber);
+    setEditValue(currentAnswer);
+  };
+
+  const confirmEdit = () => {
+    if (editingQuestion !== null && onAnswerEdit) {
+      const originalAnswer = results.find(r => r.questionNumber === editingQuestion)?.studentAnswer || '';
+      if (editValue !== originalAnswer) {
+        onAnswerEdit(editingQuestion, editValue);
+      }
+    }
+    setEditingQuestion(null);
+    setEditValue('');
+  };
+
+  const cancelEdit = () => {
+    setEditingQuestion(null);
+    setEditValue('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      confirmEdit();
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  };
+
+  const handleCorrectToggle = (questionNumber: number, currentIsCorrect: boolean) => {
+    if (onCorrectToggle) {
+      onCorrectToggle(questionNumber, !currentIsCorrect);
+    }
+  };
 
   return (
     <div className={cn("flex flex-col h-full bg-white", className)}>
@@ -118,9 +159,32 @@ export function GradingResultPanel({ submission, className }: GradingResultPanel
                   "px-4 py-3 text-sm",
                   result.isCorrect
                     ? "text-green-700"
-                    : "text-red-400 line-through"
+                    : "text-red-400"
                 )}>
-                  {result.studentAnswer || "-"}
+                  {editingQuestion === result.questionNumber ? (
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onBlur={confirmEdit}
+                      autoFocus
+                      className="w-full px-2 py-1 border border-primary rounded focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-gray-900"
+                    />
+                  ) : (
+                    <div
+                      onClick={() => startEditing(result.questionNumber, result.studentAnswer)}
+                      className={cn(
+                        "cursor-pointer hover:bg-yellow-100 px-2 py-1 rounded transition-colors inline-flex items-center gap-1",
+                        result.isEdited && "border-b-2 border-dashed border-amber-500"
+                      )}
+                    >
+                      {result.isEdited && <Pencil className="w-3 h-3 text-amber-600" />}
+                      <span className={cn(!result.isCorrect && "line-through")}>
+                        {result.studentAnswer || "-"}
+                      </span>
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {result.isCorrect ? (
@@ -135,13 +199,21 @@ export function GradingResultPanel({ submission, className }: GradingResultPanel
                 <td className="px-4 py-3">
                   <div className="flex justify-center">
                     {result.isCorrect ? (
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500">
+                      <button
+                        onClick={() => handleCorrectToggle(result.questionNumber, result.isCorrect)}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 hover:scale-110 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-400"
+                        title="클릭하여 오답으로 변경"
+                      >
                         <Check className="w-5 h-5 text-white stroke-[3]" />
-                      </div>
+                      </button>
                     ) : (
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500">
+                      <button
+                        onClick={() => handleCorrectToggle(result.questionNumber, result.isCorrect)}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 hover:scale-110 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-400"
+                        title="클릭하여 정답으로 변경"
+                      >
                         <X className="w-5 h-5 text-white stroke-[3]" />
-                      </div>
+                      </button>
                     )}
                   </div>
                 </td>

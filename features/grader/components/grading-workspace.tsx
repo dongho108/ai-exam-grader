@@ -9,7 +9,7 @@ import { GradingResultPanel } from "./grading-result-panel";
 import { StudentSubmission } from "@/types/grading";
 import { Upload, Sparkles, FileText, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { extractExamStructure, calculateGradingResult } from "@/lib/grading-service";
+import { extractExamStructure, calculateGradingResult, recalculateAfterEdit, toggleCorrectStatus } from "@/lib/grading-service";
 import { cn } from "@/lib/utils";
 
 const PDFViewer = dynamic(() => import("./pdf-viewer").then(mod => mod.PDFViewer), {
@@ -87,6 +87,31 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       processNext();
     }
   };
+
+  const handleAnswerEdit = (questionNumber: number, newAnswer: string) => {
+    if (!currentSubmission?.results) return;
+    const updatedResult = recalculateAfterEdit(
+      currentSubmission.id,
+      currentSubmission.results,
+      questionNumber,
+      newAnswer,
+      currentSubmission.studentName
+    );
+    updateSubmissionGrade(tabId, currentSubmission.id, updatedResult);
+  };
+
+  const handleCorrectToggle = (questionNumber: number, newIsCorrect: boolean) => {
+    if (!currentSubmission?.results) return;
+    const updatedResult = toggleCorrectStatus(
+      currentSubmission.id,
+      currentSubmission.results,
+      questionNumber,
+      newIsCorrect,
+      currentSubmission.studentName
+    );
+    updateSubmissionGrade(tabId, currentSubmission.id, updatedResult);
+  };
+
 
   const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
@@ -256,7 +281,11 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             {/* Content Area - 탭에 따라 전환 */}
             {currentSubmission && viewMode === 'result' ? (
               <div className="flex-1 rounded-xl border border-gray-200 shadow-sm overflow-hidden bg-white">
-                <GradingResultPanel submission={currentSubmission} />
+                <GradingResultPanel 
+                  submission={currentSubmission} 
+                  onAnswerEdit={handleAnswerEdit}
+                  onCorrectToggle={handleCorrectToggle}
+                />
               </div>
             ) : (
               <PDFViewer
