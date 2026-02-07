@@ -11,8 +11,8 @@ export function useInitialData() {
   const hasInitialized = useRef(false);
 
   useEffect(() => {
-    // Only run once on mount
-    if (hasInitialized.current || tabs.length > 0) return;
+    // Only run in development mode and only once on mount
+    if (process.env.NODE_ENV !== 'development' || hasInitialized.current || tabs.length > 0) return;
     hasInitialized.current = true;
 
     const initializeData = async () => {
