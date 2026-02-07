@@ -294,7 +294,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
                     )}
                   >
                     <FileText className="w-4 h-4" />
-                    PDF 보기
+                    제출한 시험지 보기
                   </button>
                   <button
                     onClick={() => setViewMode('result')}
