@@ -2,7 +2,7 @@
 
 import { useTabStore } from "@/store/use-tab-store";
 import { cn } from "@/lib/utils";
-import { Plus, X, Globe, LogOut } from "lucide-react";
+import { Plus, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef } from "react";
 import { useAuthStore } from "@/store/use-auth-store";
@@ -59,9 +59,8 @@ export function Header() {
   return (
     <header className="flex h-12 items-center border-b border-gray-200 bg-white px-2 shadow-sm shrink-0">
       {/* Brand Icon or Logo Area */}
-      <div className="mr-4 flex items-center gap-2 px-2 text-primary font-bold shrink-0">
-        <Globe className="h-5 w-5" />
-        <span className="hidden sm:inline-block">AI 채점기</span>
+      <div className="mr-4 flex items-center gap-3 px-2 text-primary font-bold shrink-0">
+        <img src="/logo.png" alt="AI 채점기 로고" className="h-8 w-auto object-contain" />
       </div>
 
       {/* Tabs Container */}

@@ -17,6 +17,9 @@ const firaCode = Fira_Code({
 export const metadata: Metadata = {
   title: "AI 채점기",
   description: "교사를 위한 AI 자동 채점 서비스",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
