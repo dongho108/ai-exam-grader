@@ -4,13 +4,17 @@ import { useTabStore } from "@/store/use-tab-store";
 import { cn } from "@/lib/utils";
 import { Plus, X, Globe, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuthStore } from "@/store/use-auth-store";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
 
 export function Header() {
-  const { tabs, activeTabId, addTab, setActiveTab, removeTab } = useTabStore();
+  const { tabs, activeTabId, addTab, setActiveTab, removeTab, updateTabTitle } = useTabStore();
   const { user, isAuthenticated, signInWithGoogle, signOut } = useAuthStore();
+  
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Initialize with one tab if empty on mount (Client-side only)
   useEffect(() => {
@@ -19,10 +23,43 @@ export function Header() {
     }
   }, [tabs.length, addTab]);
 
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingTabId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingTabId]);
+
+  const handleStartEdit = (tabId: string, currentTitle: string) => {
+    if (activeTabId === tabId) {
+      setEditingTabId(tabId);
+      setEditValue(currentTitle);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (editingTabId) {
+      const trimmedValue = editValue.trim();
+      if (trimmedValue) {
+        updateTabTitle(editingTabId, trimmedValue);
+      }
+      setEditingTabId(null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      setEditingTabId(null);
+    }
+  };
+
   return (
     <header className="flex h-12 items-center border-b border-gray-200 bg-white px-2 shadow-sm shrink-0">
       {/* Brand Icon or Logo Area */}
-      <div className="mr-4 flex items-center gap-2 px-2 text-primary font-bold">
+      <div className="mr-4 flex items-center gap-2 px-2 text-primary font-bold shrink-0">
         <Globe className="h-5 w-5" />
         <span className="hidden sm:inline-block">AI 채점기</span>
       </div>
@@ -33,6 +70,7 @@ export function Header() {
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
+            onDoubleClick={() => handleStartEdit(tab.id, tab.title)}
             className={cn(
               "group relative flex md:w-48 max-w-[200px] min-w-[120px] cursor-pointer items-center justify-between rounded-t-lg border-t border-x px-3 py-2 text-sm font-medium transition-all select-none",
               activeTabId === tab.id
@@ -40,19 +78,41 @@ export function Header() {
                 : "border-transparent bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 mt-1 h-9"
             )}
           >
-            <span className="truncate mr-2 flex items-center gap-1.5">
+            <div className="flex-1 truncate mr-2 flex items-center gap-1.5 overflow-hidden">
               {tab.status === 'extracting' && (
                 <Plus className="h-3 w-3 animate-spin text-primary shrink-0" />
               )}
-              {tab.status === 'extracting' ? '분석 중...' : tab.title}
-            </span>
+              {editingTabId === tab.id ? (
+                <input
+                  ref={inputRef}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={handleSaveEdit}
+                  onKeyDown={handleKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full bg-transparent border-none outline-none focus:ring-0 p-0 font-medium text-primary select-text"
+                />
+              ) : (
+                <span 
+                  className="truncate"
+                  onClick={(e) => {
+                    if (activeTabId === tab.id) {
+                      e.stopPropagation();
+                      handleStartEdit(tab.id, tab.title);
+                    }
+                  }}
+                >
+                  {tab.status === 'extracting' ? '분석 중...' : tab.title}
+                </span>
+              )}
+            </div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 removeTab(tab.id);
               }}
               className={cn(
-                "rounded-full p-0.5 opacity-0 transition-opacity hover:bg-red-100 hover:text-red-500",
+                "rounded-full p-0.5 opacity-0 transition-opacity hover:bg-red-100 hover:text-red-500 shrink-0",
                 activeTabId === tab.id && "opacity-100",
                 "group-hover:opacity-100"
               )}
@@ -71,7 +131,7 @@ export function Header() {
         {isAuthenticated && (
           <button
             onClick={addTab}
-            className="ml-1 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-primary transition-colors mb-1"
+            className="ml-1 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-primary transition-colors mb-1 shrink-0"
             aria-label="새 시험"
           >
             <Plus className="h-5 w-5" />
@@ -80,7 +140,7 @@ export function Header() {
       </div>
 
       {/* Right Side Actions (User Profile etc - Future) */}
-      <div className="ml-4 flex items-center gap-2">
+      <div className="ml-4 flex items-center gap-2 shrink-0">
         {!isAuthenticated ? (
           <GoogleLoginButton 
             onClick={signInWithGoogle} 
