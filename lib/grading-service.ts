@@ -21,20 +21,19 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
     console.error('Extract Answer Structure Error:', error);
     // Fallback Mock with 0-1 normalized coordinates
     return {
-      title: "능률보카 실력 5,6 (Mock)",
+      title: "원당중 2 7과 프린트(2) Test",
       answers: {
-        "1": { text: "A", x: 0.6, y: 0.12, page: 1 },
-        "2": { text: "B", x: 0.15, y: 0.12, page: 1 },
-        "3": { text: "C", x: 0.6, y: 0.16, page: 1 },
-        "4": { text: "D", x: 0.15, y: 0.16, page: 1 },
-        "5": { text: "A", x: 0.6, y: 0.20, page: 1 },
-        "6": { text: "B", x: 0.15, y: 0.20, page: 1 },
-        "7": { text: "C", x: 0.6, y: 0.24, page: 1 },
-        "8": { text: "D", x: 0.15, y: 0.24, page: 1 },
-        "9": { text: "A", x: 0.6, y: 0.28, page: 1 },
-        "10": { text: "B", x: 0.15, y: 0.28, page: 1 }
+        "1": { text: "The students consider him a good teacher.", x: 0.5, y: 0.15, page: 1 },
+        "2": { text: "They elected Emily the class president.", x: 0.5, y: 0.20, page: 1 },
+        "3": { text: "Mom leaves the windows open every morning.", x: 0.5, y: 0.25, page: 1 },
+        "4": { text: "We found our neighbor kind.", x: 0.5, y: 0.30, page: 1 },
+        "5": { text: "They named their son Lucas.", x: 0.5, y: 0.35, page: 1 },
+        "6": { text: "A lot of homework makes me busy.", x: 0.5, y: 0.40, page: 1 },
+        "7": { text: "Vitamin keeps our bones strong.", x: 0.5, y: 0.45, page: 1 },
+        "8": { text: "The difficult exam made/makes the students nervous.", x: 0.5, y: 0.50, page: 1 },
+        "9": { text: "The new recipe will make the food delicious.", x: 0.5, y: 0.55, page: 1 }
       },
-      totalQuestions: 10
+      totalQuestions: 9
     };
   }
 }
@@ -58,12 +57,19 @@ export async function extractExamStructure(file: File): Promise<StudentExamStruc
     console.error('Extract Exam Structure Error:', error);
     // Fallback Mock (Text only)
     return {
-      studentName: "허재인",
+      studentName: "학생",
       answers: {
-        "1": "A", "2": "C", "3": "C", "4": "D", "5": "B",
-        "6": "B", "7": "A", "8": "D", "9": "A", "10": "B"
+        "1": "The students consider him a good teacher.",
+        "2": "They elected Emily their school president.",
+        "3": "Mom keeps the window open.",
+        "4": "We found our neighbor kind.",
+        "5": "They named their son Lucas.",
+        "6": "A lot of homeworks make me busy.",
+        "7": "Vitamins keep our bones healthy.",
+        "8": "The difficult exam made the students nervous.",
+        "9": "The new recipe will make the food delicious."
       },
-      totalQuestions: 10
+      totalQuestions: 9
     };
   }
 }

@@ -4,8 +4,12 @@ import { Header } from "@/components/layout/header";
 import { UploadAnswerKey } from "@/features/grader/components/upload-answer-key";
 import { GradingWorkspace } from "@/features/grader/components/grading-workspace";
 import { useTabStore } from "@/store/use-tab-store";
+import { useInitialData } from "@/hooks/use-initial-data";
 
 export default function Home() {
+  // Load initial mock data for development
+  useInitialData();
+  
   // In a real app we might route by ID, but for SPA feel we use store
   const { activeTabId, tabs } = useTabStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
