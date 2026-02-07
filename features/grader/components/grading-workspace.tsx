@@ -3,6 +3,8 @@
 import { useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useTabStore } from "@/store/use-tab-store";
+import { useAuthStore } from "@/store/use-auth-store";
+import { LoginPromptModal } from "@/components/auth/login-prompt-modal";
 // import { PDFViewer } from "./pdf-viewer"; // Can't import directly due to DOMMatrix error
 import { SubmissionList } from "./submission-list";
 import { GradingResultPanel } from "./grading-result-panel";
@@ -32,6 +34,8 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   const [isGrading, setIsGrading] = useState(false);
   const [viewMode, setViewMode] = useState<'pdf' | 'result'>('result');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isAuthenticated, signInWithGoogle } = useAuthStore();
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   // Queue system for sequential processing
   const processingRef = useRef<{
@@ -129,6 +133,22 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
 
   const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
+
+    // AUTH CHECK: Restrict unauthenticated users
+    const existingSubmissionCount = tabSubmissions.length;
+
+    if (!isAuthenticated) {
+      // If user already has 1+ submissions, show login prompt
+      if (existingSubmissionCount >= 1) {
+        setShowLoginPrompt(true);
+        return;
+      }
+
+      // If this is their first submission, only allow 1 file
+      if (files.length > 1) {
+        files = [files[0]]; // Only process first file
+      }
+    }
 
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
     const submissionIds: string[] = [];
@@ -310,6 +330,16 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             )}
         </div>
       </div>
+
+      {showLoginPrompt && (
+        <LoginPromptModal
+          onClose={() => setShowLoginPrompt(false)}
+          onLogin={async () => {
+            await signInWithGoogle();
+            setShowLoginPrompt(false);
+          }}
+        />
+      )}
     </div>
   );
 }

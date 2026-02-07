@@ -2,12 +2,15 @@
 
 import { useTabStore } from "@/store/use-tab-store";
 import { cn } from "@/lib/utils";
-import { Plus, X, Globe } from "lucide-react";
+import { Plus, X, Globe, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
+import { useAuthStore } from "@/store/use-auth-store";
+import { GoogleLoginButton } from "@/components/auth/google-login-button";
 
 export function Header() {
   const { tabs, activeTabId, addTab, setActiveTab, removeTab } = useTabStore();
+  const { user, isAuthenticated, signInWithGoogle, signOut } = useAuthStore();
 
   // Initialize with one tab if empty on mount (Client-side only)
   useEffect(() => {
@@ -65,17 +68,49 @@ export function Header() {
         ))}
 
         {/* New Tab Button */}
-        <button
-          onClick={addTab}
-          className="ml-1 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-primary transition-colors mb-1"
-          aria-label="새 시험"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
+        {isAuthenticated && (
+          <button
+            onClick={addTab}
+            className="ml-1 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-primary transition-colors mb-1"
+            aria-label="새 시험"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Right Side Actions (User Profile etc - Future) */}
-      <div className="ml-4 w-8" /> 
+      <div className="ml-4 flex items-center gap-2">
+        {!isAuthenticated ? (
+          <GoogleLoginButton 
+            onClick={signInWithGoogle} 
+            label="로그인"
+            className="h-8 py-0 px-2 min-h-[32px]" 
+          />
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {user?.user_metadata?.avatar_url && (
+                <img
+                  src={user.user_metadata.avatar_url}
+                  alt={user.user_metadata.full_name || '프로필'}
+                  className="h-8 w-8 rounded-full border-2 border-gray-200"
+                />
+              )}
+              <span className="hidden sm:inline text-sm font-medium text-gray-700">
+                {user?.user_metadata?.full_name || user?.email}
+              </span>
+            </div>
+            <button
+              onClick={signOut}
+              className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 hover:text-red-500 transition-colors"
+              aria-label="로그아웃"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div> 
     </header>
   );
 }
