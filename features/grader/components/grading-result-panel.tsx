@@ -11,11 +11,14 @@ interface GradingResultPanelProps {
   className?: string;
   onAnswerEdit?: (questionNumber: number, newAnswer: string) => void;
   onCorrectToggle?: (questionNumber: number, isCorrect: boolean) => void;
+  onStudentNameEdit?: (newName: string) => void;
 }
 
-export function GradingResultPanel({ submission, className, onAnswerEdit, onCorrectToggle }: GradingResultPanelProps) {
+export function GradingResultPanel({ submission, className, onAnswerEdit, onCorrectToggle, onStudentNameEdit }: GradingResultPanelProps) {
   const [editingQuestion, setEditingQuestion] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [nameEditValue, setNameEditValue] = useState('');
 
   // 빈 상태: submission이 null
   if (!submission) {
@@ -80,6 +83,30 @@ export function GradingResultPanel({ submission, className, onAnswerEdit, onCorr
     }
   };
 
+  const startEditingName = () => {
+    setEditingName(true);
+    setNameEditValue(studentName);
+  };
+
+  const confirmNameEdit = () => {
+    if (onStudentNameEdit && nameEditValue.trim() !== "" && nameEditValue !== studentName) {
+      onStudentNameEdit(nameEditValue.trim());
+    }
+    setEditingName(false);
+  };
+
+  const cancelNameEdit = () => {
+    setEditingName(false);
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      confirmNameEdit();
+    } else if (e.key === 'Escape') {
+      cancelNameEdit();
+    }
+  };
+
   return (
     <div className={cn("flex flex-col h-full bg-white", className)}>
       {/* 헤더: 채점 결과 요약 */}
@@ -89,7 +116,26 @@ export function GradingResultPanel({ submission, className, onAnswerEdit, onCorr
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-sm text-gray-500 mb-1">학생</p>
-            <p className="text-lg font-semibold text-gray-800">{studentName}</p>
+            {editingName ? (
+              <input
+                type="text"
+                value={nameEditValue}
+                onChange={(e) => setNameEditValue(e.target.value)}
+                onKeyDown={handleNameKeyDown}
+                onBlur={confirmNameEdit}
+                autoFocus
+                className="text-lg font-semibold text-gray-800 border-b border-primary focus:outline-none w-32 bg-transparent"
+              />
+            ) : (
+              <p
+                onClick={startEditingName}
+                className="text-lg font-semibold text-gray-800 cursor-pointer hover:bg-yellow-50 px-1 rounded transition-colors inline-block group"
+                title="클릭하여 이름 수정"
+              >
+                {studentName}
+                <Pencil className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 inline ml-2 mb-1 transition-opacity" />
+              </p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-500 mb-1">점수</p>

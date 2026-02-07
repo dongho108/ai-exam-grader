@@ -112,6 +112,20 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
     updateSubmissionGrade(tabId, currentSubmission.id, updatedResult);
   };
 
+  const handleStudentNameEdit = (newName: string) => {
+    if (!currentSubmission?.results || !currentSubmission.score) return;
+    
+    // Create updated grading result with new name
+    const updatedResult = {
+      submissionId: currentSubmission.id,
+      studentName: newName,
+      score: currentSubmission.score,
+      results: currentSubmission.results,
+    };
+    
+    updateSubmissionGrade(tabId, currentSubmission.id, updatedResult);
+  };
+
 
   const processFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
@@ -285,6 +299,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
                   submission={currentSubmission} 
                   onAnswerEdit={handleAnswerEdit}
                   onCorrectToggle={handleCorrectToggle}
+                  onStudentNameEdit={handleStudentNameEdit}
                 />
               </div>
             ) : (
