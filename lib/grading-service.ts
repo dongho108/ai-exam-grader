@@ -1,6 +1,7 @@
 import { GradingResult, QuestionResult, AnswerKeyStructure, StudentExamStructure } from '@/types/grading';
 import { supabase } from './supabase';
 import { fileToImages } from './file-utils';
+import { MOCK_ANSWER_STRUCTURE, MOCK_STUDENT_EXAM_STRUCTURE } from './mock-data';
 
 /**
  * Extracts the correct answers AND their coordinates from the Answer Key PDF
@@ -19,22 +20,7 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
     return data.data as AnswerKeyStructure;
   } catch (error) {
     console.error('Extract Answer Structure Error:', error);
-    // Fallback Mock with 0-1 normalized coordinates
-    return {
-      title: "원당중 2 7과 프린트(2) Test",
-      answers: {
-        "1": { text: "The students consider him a good teacher.", question: "다음 문장을 영작하시오." },
-        "2": { text: "They elected Emily the class president.", question: "다음 문장을 영작하시오." },
-        "3": { text: "Mom leaves the windows open every morning.", question: "다음 문장을 영작하시오." },
-        "4": { text: "We found our neighbor kind.", question: "다음 문장을 영작하시오." },
-        "5": { text: "They named their son Lucas.", question: "다음 문장을 영작하시오." },
-        "6": { text: "A lot of homework makes me busy.", question: "다음 문장을 영작하시오." },
-        "7": { text: "Vitamin keeps our bones strong.", question: "다음 문장을 영작하시오." },
-        "8": { text: "The difficult exam made/makes the students nervous.", question: "다음 문장을 영작하시오." },
-        "9": { text: "The new recipe will make the food delicious.", question: "다음 문장을 영작하시오." }
-      },
-      totalQuestions: 9
-    };
+    return MOCK_ANSWER_STRUCTURE;
   }
 }
 
@@ -55,22 +41,7 @@ export async function extractExamStructure(file: File): Promise<StudentExamStruc
     return data.data as StudentExamStructure;
   } catch (error) {
     console.error('Extract Exam Structure Error:', error);
-    // Fallback Mock (Text only)
-    return {
-      studentName: "학생",
-      answers: {
-        "1": "The students consider him a good teacher.",
-        "2": "They elected Emily their school president.",
-        "3": "Mom keeps the window open.",
-        "4": "We found our neighbor kind.",
-        "5": "They named their son Lucas.",
-        "6": "A lot of homeworks make me busy.",
-        "7": "Vitamins keep our bones healthy.",
-        "8": "The difficult exam made the students nervous.",
-        "9": "The new recipe will make the food delicious."
-      },
-      totalQuestions: 9
-    };
+    return MOCK_STUDENT_EXAM_STRUCTURE;
   }
 }
 

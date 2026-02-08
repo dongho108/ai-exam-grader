@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTabStore } from '@/store/use-tab-store';
-import { extractAnswerStructure, extractExamStructure, calculateGradingResult } from '@/lib/grading-service';
+import { MOCK_ANSWER_STRUCTURE, getMockGradingResult } from '@/lib/mock-data';
 
 /**
  * Hook to load initial mock data for development/testing
@@ -36,8 +36,8 @@ export function useInitialData() {
         // Set answer key file
         setAnswerKeyFile(newTab.id, answerKeyFile);
         
-        // Extract answer structure
-        const answerStructure = await extractAnswerStructure(answerKeyFile);
+        // Extract answer structure - use MOCK in dev auto-setup
+        const answerStructure = MOCK_ANSWER_STRUCTURE;
         setAnswerKeyStructure(newTab.id, answerStructure);
         
         // Load student submission PDF
@@ -50,14 +50,13 @@ export function useInitialData() {
         addSubmission(newTab.id, studentFile, submissionId);
         setSubmissionStatus(newTab.id, submissionId, 'grading');
         
-        // Extract and grade student submission
-        const examStructure = await extractExamStructure(studentFile);
-        const gradingResult = await calculateGradingResult(submissionId, answerStructure, examStructure);
+        // Use Mock Grading Result in dev auto-setup
+        const gradingResult = getMockGradingResult(submissionId);
         
         // Update with grading results
         updateSubmissionGrade(newTab.id, submissionId, gradingResult);
         
-        console.log('✅ Initial data loaded successfully');
+        console.log('✅ Initial mock data loaded successfully (API calls skipped)');
       } catch (error) {
         console.error('Failed to initialize data:', error);
       }
