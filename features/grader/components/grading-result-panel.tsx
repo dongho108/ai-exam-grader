@@ -172,6 +172,9 @@ export function GradingResultPanel({ submission, className, onAnswerEdit, onCorr
                 번호
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                문제
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                 학생 답안
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
@@ -198,6 +201,9 @@ export function GradingResultPanel({ submission, className, onAnswerEdit, onCorr
                   result.isCorrect ? "text-green-700" : "text-red-700"
                 )}>
                   {result.questionNumber}
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600">
+                  {result.question || "-"}
                 </td>
                 <td className={cn(
                   "px-4 py-3 text-sm",

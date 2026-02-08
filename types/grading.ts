@@ -21,8 +21,8 @@ export interface QuestionResult {
   studentAnswer: string;
   correctAnswer: string;
   isCorrect: boolean;
+  question?: string;            // Original question text
   isEdited?: boolean;           // Track manual edits by teacher
-  position?: { x: number; y: number; page: number }; // Position on PDF for overlay (0-1 normalized coordinates)
 }
 
 export interface GradingResult {
@@ -38,7 +38,7 @@ export interface GradingResult {
 
 export interface AnswerKeyStructure {
   title: string;
-  answers: Record<string, { text: string; x: number; y: number; page: number }>;
+  answers: Record<string, { text: string; question?: string }>;
   totalQuestions: number;
 }
 

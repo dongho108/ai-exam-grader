@@ -23,15 +23,15 @@ export async function extractAnswerStructure(file: File): Promise<AnswerKeyStruc
     return {
       title: "원당중 2 7과 프린트(2) Test",
       answers: {
-        "1": { text: "The students consider him a good teacher.", x: 0.5, y: 0.15, page: 1 },
-        "2": { text: "They elected Emily the class president.", x: 0.5, y: 0.20, page: 1 },
-        "3": { text: "Mom leaves the windows open every morning.", x: 0.5, y: 0.25, page: 1 },
-        "4": { text: "We found our neighbor kind.", x: 0.5, y: 0.30, page: 1 },
-        "5": { text: "They named their son Lucas.", x: 0.5, y: 0.35, page: 1 },
-        "6": { text: "A lot of homework makes me busy.", x: 0.5, y: 0.40, page: 1 },
-        "7": { text: "Vitamin keeps our bones strong.", x: 0.5, y: 0.45, page: 1 },
-        "8": { text: "The difficult exam made/makes the students nervous.", x: 0.5, y: 0.50, page: 1 },
-        "9": { text: "The new recipe will make the food delicious.", x: 0.5, y: 0.55, page: 1 }
+        "1": { text: "The students consider him a good teacher.", question: "다음 문장을 영작하시오." },
+        "2": { text: "They elected Emily the class president.", question: "다음 문장을 영작하시오." },
+        "3": { text: "Mom leaves the windows open every morning.", question: "다음 문장을 영작하시오." },
+        "4": { text: "We found our neighbor kind.", question: "다음 문장을 영작하시오." },
+        "5": { text: "They named their son Lucas.", question: "다음 문장을 영작하시오." },
+        "6": { text: "A lot of homework makes me busy.", question: "다음 문장을 영작하시오." },
+        "7": { text: "Vitamin keeps our bones strong.", question: "다음 문장을 영작하시오." },
+        "8": { text: "The difficult exam made/makes the students nervous.", question: "다음 문장을 영작하시오." },
+        "9": { text: "The new recipe will make the food delicious.", question: "다음 문장을 영작하시오." }
       },
       totalQuestions: 9
     };
@@ -121,12 +121,8 @@ export async function calculateGradingResult(
         questionNumber: parseInt(qNum),
         studentAnswer: studentAnswerRaw,
         correctAnswer: answerKeyData.text,
+        question: answerKeyData.question, // Pass original question text
         isCorrect: true,
-        position: {
-          x: Math.min(Math.max(answerKeyData.x, 0), 1),
-          y: Math.min(Math.max(answerKeyData.y, 0), 1),
-          page: answerKeyData.page || 1,
-        }
       });
     } else {
       // Collect for AI batch if candidate for semantic check
@@ -144,12 +140,8 @@ export async function calculateGradingResult(
         questionNumber: parseInt(qNum),
         studentAnswer: studentAnswerRaw,
         correctAnswer: answerKeyData.text,
+        question: answerKeyData.question, // Pass original question text
         isCorrect: false, // 기본값은 false, AI가 승인하면 나중에 업데이트됨
-        position: {
-          x: Math.min(Math.max(answerKeyData.x, 0), 1),
-          y: Math.min(Math.max(answerKeyData.y, 0), 1),
-          page: answerKeyData.page || 1,
-        }
       });
     }
   });
