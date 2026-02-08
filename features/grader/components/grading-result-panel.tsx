@@ -111,8 +111,6 @@ export function GradingResultPanel({ submission, className, onAnswerEdit, onCorr
     <div className={cn("flex flex-col h-full bg-white", className)}>
       {/* 헤더: 채점 결과 요약 */}
       <div className="p-6 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">채점 결과</h2>
-
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-sm text-gray-500 mb-1">학생</p>

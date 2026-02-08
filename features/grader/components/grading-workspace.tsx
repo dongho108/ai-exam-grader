@@ -268,15 +268,15 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             <div className="flex items-center justify-between px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200">
               <div>
                 <h3 className="font-semibold text-gray-700">
-                    {currentSubmission ? currentSubmission.studentName : "정답지 (참조)"}
+                  {currentSubmission ? '' : "정답지 (참조)"}
                 </h3>
                 {currentSubmission ? (
-                  <p className="text-sm text-gray-500">
-                    점수: {currentSubmission.score?.correct}/{currentSubmission.score?.total} ({Math.round(currentSubmission.score?.percentage || 0)}%)
-                  </p>
+                    <div className="text-md font-bold text-gray-800 leading-tight">
+                      채점 결과
+                    </div>
                 ) : (
                     <p className="text-sm text-gray-500">
-                        채점에 사용되는 정답지입니다.
+                      채점에 사용되는 정답지입니다.
                     </p>
                 )}
               </div>
