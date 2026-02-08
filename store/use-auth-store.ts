@@ -47,9 +47,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signInWithGoogle: async () => {
     try {
+      const redirectTo = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+      console.log('[Auth] Google Sign-In initiated');
+      console.log('[Auth] Using redirect URL:', redirectTo);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
+          redirectTo,
           skipBrowserRedirect: true, // We'll handle popup manually
         },
       });
