@@ -1,28 +1,36 @@
 "use client";
 
 import { useTabStore } from "@/store/use-tab-store";
+import { useAuthStore } from "@/store/use-auth-store";
 import { UploadZone } from "@/features/upload/upload-zone";
 
 import { useState } from "react";
 import { extractAnswerStructure } from "@/lib/grading-service";
+import { uploadAndTrackAnswerKey } from "@/lib/auto-save";
 import { Loader2 } from "lucide-react";
 
 export function UploadAnswerKey() {
   const { activeTabId, tabs, setAnswerKeyFile, setAnswerKeyStructure } = useTabStore();
+  const user = useAuthStore((s) => s.user);
   const activeTab = tabs.find(t => t.id === activeTabId);
   const isExtracting = activeTab?.status === 'extracting';
-  
+
   const handleFileSelect = async (file: File) => {
     if (activeTabId) {
         try {
             // 1. Save the file ref first (Sets status to 'extracting')
             setAnswerKeyFile(activeTabId, file);
-            
+
             // 2. Perform AI Extraction
             const structure = await extractAnswerStructure(file);
-            
+
             // 3. Save the structure to store (Sets status to 'ready')
             setAnswerKeyStructure(activeTabId, structure);
+
+            // 4. Upload PDF to Supabase Storage (non-blocking)
+            if (user?.id) {
+              uploadAndTrackAnswerKey(user.id, activeTabId, file);
+            }
         } catch (error) {
             console.error("Extraction failed:", error);
         }

@@ -1,18 +1,21 @@
 import { useEffect, useRef } from 'react';
 import { useTabStore } from '@/store/use-tab-store';
+import { useAuthStore } from '@/store/use-auth-store';
 import { MOCK_ANSWER_STRUCTURE, getMockGradingResult } from '@/lib/mock-data';
 
 /**
  * Hook to load initial mock data for development/testing
- * Loads answer key and student submission automatically on first mount
+ * Loads answer key and student submission automatically on first mount.
+ * Skips if user is authenticated (server data will be loaded by useSessionSync).
  */
 export function useInitialData() {
   const { tabs, addTab, setAnswerKeyFile, setAnswerKeyStructure, addSubmission, updateSubmissionGrade, setSubmissionStatus } = useTabStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasInitialized = useRef(false);
 
   useEffect(() => {
-    // Only run in development mode and only once on mount
-    if (process.env.NODE_ENV !== 'development' || hasInitialized.current || tabs.length > 0) return;
+    // Only run in development mode, only once on mount, and only if not authenticated
+    if (process.env.NODE_ENV !== 'development' || hasInitialized.current || tabs.length > 0 || isAuthenticated) return;
     hasInitialized.current = true;
 
     const initializeData = async () => {

@@ -5,7 +5,10 @@ export interface StudentSubmission {
   id: string;
   studentName: string;
   fileName: string;
-  fileRef: File;
+  // Runtime file reference (not serializable - undefined for server-loaded submissions)
+  fileRef?: File;
+  // Supabase Storage path (used to lazy-download the file when needed)
+  storagePath?: string;
   status: 'pending' | 'queued' | 'grading' | 'graded';
   score?: {
     correct: number;

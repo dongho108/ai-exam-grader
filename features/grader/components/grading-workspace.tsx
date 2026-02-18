@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useTabStore } from "@/store/use-tab-store";
 import { useAuthStore } from "@/store/use-auth-store";
@@ -13,6 +13,8 @@ import { Upload, Sparkles, FileText, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { extractExamStructure, calculateGradingResult, recalculateAfterEdit, toggleCorrectStatus } from "@/lib/grading-service";
 import { cn } from "@/lib/utils";
+import { uploadAndTrackSubmission } from "@/lib/auto-save";
+import { resolveFile } from "@/lib/file-resolver";
 
 const PDFViewer = dynamic(() => import("./pdf-viewer").then(mod => mod.PDFViewer), {
   ssr: false,
@@ -30,6 +32,7 @@ interface GradingWorkspaceProps {
 
 export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps) {
   const { addSubmission, updateSubmissionGrade, submissions, setSubmissionStatus } = useTabStore();
+  const user = useAuthStore((s) => s.user);
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
   const [isGrading, setIsGrading] = useState(false);
   const [viewMode, setViewMode] = useState<'pdf' | 'result'>('result');
@@ -74,8 +77,15 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       const submission = useTabStore.getState().submissions[tabId]?.find(s => s.id === submissionId);
       if (!submission) throw new Error('Submission not found');
 
+      // Resolve the file (may need to download from storage)
+      let file = submission.fileRef;
+      if (!file && submission.storagePath) {
+        file = await resolveFile(submission.storagePath, submission.fileName);
+      }
+      if (!file) throw new Error('No file available for submission');
+
       // 1. AI Extraction of student answers/name
-      const examStructure = await extractExamStructure(submission.fileRef);
+      const examStructure = await extractExamStructure(file);
 
       // 2. Local Grading Result calculation
       const result = await calculateGradingResult(submissionId, answerKeyStructure, examStructure);
@@ -161,6 +171,11 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       addSubmission(tabId, file, submissionId);
       setSubmissionStatus(tabId, submissionId, 'queued');
       submissionIds.push(submissionId);
+
+      // Upload to Supabase Storage (non-blocking)
+      if (user?.id) {
+        uploadAndTrackSubmission(user.id, tabId, submissionId, file);
+      }
     }
 
     // 2. Add to processing queue
@@ -198,9 +213,27 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   };
 
   // Always get the fresh submission data from the store to avoid stale state in the viewer
-  const currentSubmission = selectedSubmission 
+  const currentSubmission = selectedSubmission
     ? tabSubmissions.find(s => s.id === selectedSubmission.id) || selectedSubmission
     : null;
+
+  // Resolve file for current submission (may need to download from storage)
+  const [resolvedSubmissionFile, setResolvedSubmissionFile] = useState<File | undefined>(undefined);
+  useEffect(() => {
+    if (!currentSubmission) {
+      setResolvedSubmissionFile(undefined);
+      return;
+    }
+    if (currentSubmission.fileRef) {
+      setResolvedSubmissionFile(currentSubmission.fileRef);
+      return;
+    }
+    if (currentSubmission.storagePath) {
+      resolveFile(currentSubmission.storagePath, currentSubmission.fileName)
+        .then(setResolvedSubmissionFile)
+        .catch((err) => console.error('[GradingWorkspace] Failed to resolve file:', err));
+    }
+  }, [currentSubmission?.id, currentSubmission?.fileRef, currentSubmission?.storagePath]);
 
   return (
     <div className="flex h-full gap-4 overflow-hidden">
@@ -324,7 +357,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
               </div>
             ) : (
               <PDFViewer
-                  file={currentSubmission ? currentSubmission.fileRef : answerKeyFile}
+                  file={currentSubmission ? (resolvedSubmissionFile ?? answerKeyFile) : answerKeyFile}
                   className="flex-1"
               />
             )}

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef } from "react";
 import { useAuthStore } from "@/store/use-auth-store";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
+import { deleteSession as deleteSessionFromDB } from "@/lib/persistence-service";
+import { deleteSessionFiles } from "@/lib/storage-service";
 
 export function Header() {
   const { tabs, activeTabId, addTab, setActiveTab, removeTab, updateTabTitle } = useTabStore();
@@ -109,6 +111,16 @@ export function Header() {
               onClick={(e) => {
                 e.stopPropagation();
                 removeTab(tab.id);
+                // Delete from server (non-blocking)
+                const userId = useAuthStore.getState().user?.id;
+                if (userId) {
+                  deleteSessionFromDB(tab.id).catch((err) =>
+                    console.error('[Header] Failed to delete session from DB:', err)
+                  );
+                  deleteSessionFiles(userId, tab.id).catch((err) =>
+                    console.error('[Header] Failed to delete session files:', err)
+                  );
+                }
               }}
               className={cn(
                 "rounded-full p-0.5 opacity-0 transition-opacity hover:bg-red-100 hover:text-red-500 shrink-0",

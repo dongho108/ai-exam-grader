@@ -11,9 +11,10 @@ export interface ExamSession {
   answerKeyFile?: {
     name: string;
     size: number;
-    // We don't store the full file content in Zustand to avoid bloat,
-    // but in Stage 1 we might keep a reference or URL.
-    fileRef?: File; 
+    // Runtime file reference (not serializable - undefined for server-loaded sessions)
+    fileRef?: File;
+    // Supabase Storage path (used to lazy-download the file when needed)
+    storagePath?: string;
   };
 }
 

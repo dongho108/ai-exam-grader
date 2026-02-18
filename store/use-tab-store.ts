@@ -5,7 +5,7 @@ import { StudentSubmission, GradingResult, AnswerKeyStructure } from '@/types/gr
 
 // Extend ExamSession to include answerKeyFile and answerKeyStructure
 export interface StoreExamSession extends ExamSession {
-  answerKeyFile?: { name: string; size: number; fileRef: File };
+  answerKeyFile?: { name: string; size: number; fileRef?: File; storagePath?: string };
   answerKeyStructure?: AnswerKeyStructure | null;
 }
 
@@ -27,6 +27,9 @@ interface TabState {
   updateSubmissionGrade: (tabId: string, submissionId: string, result: GradingResult) => void;
   setSubmissionStatus: (tabId: string, submissionId: string, status: StudentSubmission['status']) => void;
   removeSubmission: (tabId: string, submissionId: string) => void;
+
+  // Persistence Actions
+  hydrateFromServer: (sessions: StoreExamSession[], submissions: Record<string, StudentSubmission[]>) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -156,6 +159,14 @@ export const useTabStore = create<TabState>((set, get) => ({
         [tabId]: (state.submissions[tabId] || []).filter(sub => sub.id !== submissionId)
       },
     }));
+  },
+
+  hydrateFromServer: (sessions, submissions) => {
+    set({
+      tabs: sessions,
+      activeTabId: sessions.length > 0 ? sessions[sessions.length - 1].id : null,
+      submissions,
+    });
   },
 }));
 
