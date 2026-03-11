@@ -8,10 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "naps2:download": "node scripts/download-naps2.mjs",
     "electron:compile": "tsc -p electron/tsconfig.json",
     "electron:dev": "npm run electron:compile && concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "next build && npm run electron:compile && electron-builder",
-    "electron:build:win": "next build && npm run electron:compile && electron-builder --win",
+    "electron:build:win": "npm run naps2:download && next build && npm run electron:compile && electron-builder --win",
     "electron:build:mac": "next build && npm run electron:compile && electron-builder --mac",
     "electron:build:linux": "next build && npm run electron:compile && electron-builder --linux"
   },
@@ -40,6 +41,7 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "unzipper": "^0.12.3",
     "wait-on": "^8.0.3"
   },
   "build": {
@@ -61,7 +63,14 @@
     },
     "win": {
       "target": ["nsis"],
-      "icon": "public/logo.png"
+      "icon": "public/logo.png",
+      "extraResources": [
+        {
+          "from": "resources/naps2",
+          "to": "naps2",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "linux": {
       "target": ["AppImage"],

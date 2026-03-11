@@ -1,6 +1,9 @@
 import { app, BrowserWindow, shell, protocol, net, ipcMain } from 'electron';
 import path from 'path';
 import url from 'url';
+import { ScannerService } from './scanner-service';
+
+const scannerService = new ScannerService();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -128,7 +131,36 @@ app.whenReady().then(() => {
     return shell.openExternal(url);
   });
 
+  // Scanner IPC handlers
+  ipcMain.handle('scanner:check-availability', () => {
+    return scannerService.isAvailable();
+  });
+
+  ipcMain.handle('scanner:list-devices', async () => {
+    return scannerService.listDevices();
+  });
+
+  ipcMain.handle('scanner:scan', async (_event, options) => {
+    return scannerService.scan(options);
+  });
+
+  ipcMain.handle('scanner:read-scan-file', (_event, filePath: string) => {
+    return scannerService.readScanFile(filePath);
+  });
+
+  ipcMain.handle('scanner:cleanup-scan-file', (_event, filePath: string) => {
+    return scannerService.cleanupScanFile(filePath);
+  });
+
+  // 이전 세션의 잔여 임시 파일 정리
+  scannerService.cleanup();
+
   createWindow();
+});
+
+app.on('before-quit', () => {
+  scannerService.killProcess();
+  scannerService.cleanup();
 });
 
 app.on('window-all-closed', () => {

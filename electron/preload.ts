@@ -11,4 +11,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('auth-callback', handler);
     };
   },
+  scanner: {
+    checkAvailability: () => ipcRenderer.invoke('scanner:check-availability'),
+    listDevices: () => ipcRenderer.invoke('scanner:list-devices'),
+    scan: (options?: Record<string, unknown>) => ipcRenderer.invoke('scanner:scan', options),
+    readScanFile: (filePath: string) => ipcRenderer.invoke('scanner:read-scan-file', filePath),
+    cleanupScanFile: (filePath: string) => ipcRenderer.invoke('scanner:cleanup-scan-file', filePath),
+  },
 });

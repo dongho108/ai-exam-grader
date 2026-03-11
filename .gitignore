@@ -86,3 +86,6 @@ next-env.d.ts
 .windsurf/
 .zencoder/
 
+# NAPS2 Portable (downloaded at build time)
+resources/naps2/
+

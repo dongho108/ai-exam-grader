@@ -19,3 +19,28 @@ export interface ExamSession {
 }
 
 export type TabId = string;
+
+// Scanner types
+export interface ScanOptions {
+  device?: string;
+  dpi?: number;
+  colorMode?: 'color' | 'gray' | 'bw';
+  format?: 'pdf' | 'jpeg' | 'png';
+  source?: 'glass' | 'feeder' | 'duplex';
+}
+
+export interface ScanResult {
+  filePath: string;
+  mimeType: string;
+}
+
+export interface ScannerDevice {
+  name: string;
+  driver: 'twain' | 'wia';
+}
+
+export interface ScannerAvailability {
+  available: boolean;
+  reason?: 'windows-only' | 'naps2-not-found';
+  path?: string;
+}
