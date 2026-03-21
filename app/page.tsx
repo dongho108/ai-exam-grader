@@ -10,6 +10,8 @@ import { useAuthInit } from "@/hooks/use-auth-init";
 import { useSessionSync } from "@/hooks/use-session-sync";
 import { resolveFile } from "@/lib/file-resolver";
 import { Loader2 } from "lucide-react";
+import { ScanWorkflowShell } from "@/features/scanner/components/scan-workflow-shell";
+import { useScanStore } from "@/store/use-scan-store";
 
 /**
  * Resolves the answer key File for a tab.
@@ -101,6 +103,14 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Scanner Workflow Overlay */}
+      <ScanWorkflowShell
+        onGradeStart={(students) => {
+          const answerKeys = useScanStore.getState().answerKeys
+          return useTabStore.getState().addTabFromScan({ students, answerKeys })
+        }}
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ export const MOCK_ANSWER_STRUCTURE: AnswerKeyStructure = {
 
 export const MOCK_STUDENT_EXAM_STRUCTURE: StudentExamStructure = {
   studentName: "홍길동",
+  examTitle: "원당중 2 7과 프린트(2) Test",
   answers: {
     "1": "The students consider him a good teacher.",
     "2": "They elected Emily their school president.",

@@ -49,7 +49,7 @@ serve(async (req)=>{
     // LLM 프로바이더로 구조 추출
     const provider = createProvider();
     const structure = await provider.extractStructure(body.images, EXTRACT_EXAM_PROMPT);
-    console.log(`Extracted ${structure.totalQuestions} answers for student: ${structure.studentName}`);
+    console.log(`Extracted ${structure.totalQuestions} answers for student: ${structure.studentName}, exam: ${structure.examTitle}`);
     const response = {
       success: true,
       data: structure

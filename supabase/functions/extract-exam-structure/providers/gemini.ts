@@ -83,6 +83,8 @@ export class GeminiProvider {
     }
     return {
       studentName: parsed.studentName || '학생',
+      examTitle: parsed.examTitle || '',
+      className: parsed.className,
       answers,
       totalQuestions: parsed.totalQuestions,
       extractedAt: Date.now()

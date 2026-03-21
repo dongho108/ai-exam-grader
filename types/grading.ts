@@ -17,6 +17,8 @@ export interface StudentSubmission {
   };
   results?: QuestionResult[];
   uploadedAt: number;
+  // Pre-extracted OCR result from scanner — skips duplicate edge function call
+  preExtractedStructure?: StudentExamStructure;
 }
 
 export interface QuestionResult {

@@ -73,7 +73,8 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       }
       if (!file) throw new Error('No file available for submission');
 
-      const examStructure = await extractExamStructure(file);
+      const examStructure = submission.preExtractedStructure
+        ?? await extractExamStructure(file);
       const result = await calculateGradingResult(submissionId, answerKeyStructure, examStructure);
       updateSubmissionGrade(tabId, submissionId, result);
     } catch (error) {
@@ -102,6 +103,21 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       });
     }
   };
+
+  // Auto-process queued submissions (from scan workflow)
+  useEffect(() => {
+    const queued = tabSubmissions.filter(s => s.status === 'queued');
+    if (queued.length === 0) return;
+
+    const newIds = queued
+      .map(s => s.id)
+      .filter(id => !processingRef.current.queue.includes(id));
+
+    if (newIds.length === 0) return;
+
+    processingRef.current.queue.push(...newIds);
+    processNext();
+  }, [tabId, tabSubmissions]);
 
   const handleAnswerEdit = (questionNumber: number, newAnswer: string) => {
     if (!currentSubmission?.results) return;

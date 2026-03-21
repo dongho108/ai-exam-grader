@@ -102,6 +102,10 @@ describe('matchExamTitle', () => {
   it('빈 answerKeys 배열 → null', () => {
     expect(matchExamTitle('수학 중간고사', [])).toBeNull()
   })
+
+  it('빈 title → null (매칭 불가)', () => {
+    expect(matchExamTitle('', keys)).toBeNull()
+  })
 })
 
 describe('groupPagesByStudent', () => {

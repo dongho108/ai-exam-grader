@@ -14,7 +14,6 @@ import { deleteSessionFiles } from "@/lib/storage-service";
 export function Header() {
   const { tabs, activeTabId, addTab, setActiveTab, removeTab, updateTabTitle } = useTabStore();
   const { user, isAuthenticated, signInWithGoogle, signOut } = useAuthStore();
-  
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);

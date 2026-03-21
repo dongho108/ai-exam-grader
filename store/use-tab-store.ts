@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { ExamSession } from '@/types';
+import { ExamSession, ClassifiedStudent, AnswerKeyEntry } from '@/types';
 import { StudentSubmission, GradingResult, AnswerKeyStructure } from '@/types/grading';
 
 // Extend ExamSession to include answerKeyFile and answerKeyStructure
@@ -27,6 +27,9 @@ interface TabState {
   updateSubmissionGrade: (tabId: string, submissionId: string, result: GradingResult) => void;
   setSubmissionStatus: (tabId: string, submissionId: string, status: StudentSubmission['status']) => void;
   removeSubmission: (tabId: string, submissionId: string) => void;
+
+  // Scanner Actions
+  addTabFromScan: (params: { students: ClassifiedStudent[]; answerKeys: AnswerKeyEntry[] }) => number;
 
   // Persistence Actions
   hydrateFromServer: (sessions: StoreExamSession[], submissions: Record<string, StudentSubmission[]>) => void;
@@ -159,6 +162,75 @@ export const useTabStore = create<TabState>((set, get) => ({
         [tabId]: (state.submissions[tabId] || []).filter(sub => sub.id !== submissionId)
       },
     }));
+  },
+
+  addTabFromScan: ({ students, answerKeys }) => {
+    const groups = new Map<string, { examTitle: string; students: ClassifiedStudent[]; answerKey: AnswerKeyEntry | undefined }>();
+
+    for (const student of students) {
+      if (!student.name || !student.examTitle || !student.answerKeyId) {
+        console.warn('[addTabFromScan] 학생 스킵:', { name: student.name, examTitle: student.examTitle, answerKeyId: student.answerKeyId })
+        continue;
+      }
+
+      const groupKey = student.examTitle;
+      const answerKey = answerKeys.find(k => k.id === student.answerKeyId);
+
+      const existing = groups.get(groupKey);
+      if (existing) {
+        existing.students.push(student);
+      } else {
+        groups.set(groupKey, {
+          examTitle: student.examTitle,
+          students: [student],
+          answerKey,
+        });
+      }
+    }
+
+    const newTabs: StoreExamSession[] = [];
+    const newSubmissions: Record<string, StudentSubmission[]> = {};
+
+    for (const group of groups.values()) {
+      if (group.students.length === 0 || !group.answerKey) {
+        console.warn('[addTabFromScan] 그룹 스킵:', { examTitle: group.examTitle, studentCount: group.students.length, hasAnswerKey: !!group.answerKey })
+        continue;
+      }
+
+      const tabId = generateId();
+      const title = group.examTitle;
+
+      newTabs.push({
+        id: tabId,
+        title,
+        createdAt: Date.now(),
+        status: 'ready',
+        answerKeyFile: {
+          name: group.answerKey.file.name,
+          size: group.answerKey.file.size,
+          fileRef: group.answerKey.file,
+        },
+        answerKeyStructure: group.answerKey.structure,
+      });
+
+      newSubmissions[tabId] = group.students.map((student) => ({
+        id: generateId(),
+        studentName: student.name,
+        fileName: student.pages[0]?.file.name ?? `${student.name}.pdf`,
+        fileRef: student.pages[0]?.file,
+        status: 'queued' as const,
+        uploadedAt: Date.now(),
+        preExtractedStructure: student.pages[0]?.ocrResult,
+      }));
+    }
+
+    set((state) => ({
+      tabs: [...state.tabs, ...newTabs],
+      activeTabId: newTabs.length > 0 ? newTabs[0].id : state.activeTabId,
+      submissions: { ...state.submissions, ...newSubmissions },
+    }));
+
+    return newTabs.length;
   },
 
   hydrateFromServer: (sessions, submissions) => {
