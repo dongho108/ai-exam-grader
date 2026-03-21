@@ -5,7 +5,8 @@ import { useScannerAvailability } from '../hooks/use-scanner-availability'
 export function ScannerStatusIndicator() {
   const { available, isElectron } = useScannerAvailability()
 
-  if (!isElectron) return null
+  const isDev = process.env.NODE_ENV === 'development'
+  if (!isElectron && !isDev) return null
 
   return (
     <div className="flex items-center gap-1.5 text-xs font-medium">

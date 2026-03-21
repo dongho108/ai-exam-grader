@@ -7,12 +7,19 @@ interface UseScannerAvailabilityReturn {
   isElectron: boolean
 }
 
+const isDev = process.env.NODE_ENV === 'development'
+
 export function useScannerAvailability(): UseScannerAvailabilityReturn {
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron
-  const [available, setAvailable] = useState(false)
+  const [available, setAvailable] = useState(isDev) // dev 모드에서는 기본 true
   const [reason, setReason] = useState<ScannerAvailability['reason']>()
 
   const checkAvailability = useCallback(async () => {
+    if (isDev && !isElectron) {
+      // Dev 모드 + 비-Electron: 항상 available
+      setAvailable(true)
+      return
+    }
     if (!isElectron) return
     try {
       const result = await window.electronAPI!.scanner.checkAvailability()
@@ -26,11 +33,11 @@ export function useScannerAvailability(): UseScannerAvailabilityReturn {
   useEffect(() => {
     checkAvailability()
 
-    if (!isElectron) return
+    if (!isElectron && !isDev) return
 
     const interval = setInterval(checkAvailability, 30_000)
     return () => clearInterval(interval)
   }, [checkAvailability, isElectron])
 
-  return { available, reason, isElectron }
+  return { available, reason, isElectron: isElectron || isDev }
 }
