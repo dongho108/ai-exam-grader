@@ -14,7 +14,9 @@
     "electron:build": "next build && npm run electron:compile && electron-builder",
     "electron:build:win": "npm run naps2:download && next build && npm run electron:compile && electron-builder --win",
     "electron:build:mac": "next build && npm run electron:compile && electron-builder --mac",
-    "electron:build:linux": "next build && npm run electron:compile && electron-builder --linux"
+    "electron:build:linux": "next build && npm run electron:compile && electron-builder --linux",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.93.3",
@@ -31,17 +33,22 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.1.2",
     "electron": "^35.1.2",
     "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "jsdom": "^29.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "unzipper": "^0.12.3",
+    "vitest": "^4.1.0",
     "wait-on": "^8.0.3"
   },
   "build": {
@@ -58,31 +65,44 @@
       "out/**/*"
     ],
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "public/logo.png"
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "public/logo.png",
       "extraResources": [
         {
           "from": "resources/naps2",
           "to": "naps2",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "public/logo.png"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "protocols": [{
-      "name": "AI Exam Grader",
-      "schemes": ["ai-exam-grader"]
-    }]
+    "protocols": [
+      {
+        "name": "AI Exam Grader",
+        "schemes": [
+          "ai-exam-grader"
+        ]
+      }
+    ]
   }
 }

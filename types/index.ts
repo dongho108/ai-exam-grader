@@ -44,3 +44,39 @@ export interface ScannerAvailability {
   reason?: 'windows-only' | 'naps2-not-found';
   path?: string;
 }
+
+// --- Scanner Batch Workflow Types ---
+
+import type { AnswerKeyStructure, StudentExamStructure } from './grading'
+
+export interface AnswerKeyEntry {
+  id: string;
+  title: string;
+  file: File;
+  structure: AnswerKeyStructure;
+  createdAt: number;
+}
+
+export type ScanSessionStatus = 'idle' | 'scanning' | 'processing' | 'completed' | 'error';
+
+export interface ScanSession {
+  id: string;
+  status: ScanSessionStatus;
+  pages: ScannedPage[];
+  startedAt: number;
+}
+
+export interface ScannedPage {
+  id: string;
+  file: File;
+  ocrResult?: StudentExamStructure;
+  matchedAnswerKey?: string;
+}
+
+export interface ClassifiedStudent {
+  name: string;
+  className?: string;
+  examTitle: string;
+  pages: ScannedPage[];
+  answerKeyId: string;
+}

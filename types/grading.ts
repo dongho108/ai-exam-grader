@@ -47,6 +47,8 @@ export interface AnswerKeyStructure {
 
 export interface StudentExamStructure {
   studentName: string;
+  examTitle?: string;
+  className?: string;
   answers: Record<string, string>;
   totalQuestions: number;
 }

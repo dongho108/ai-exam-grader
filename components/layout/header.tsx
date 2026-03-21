@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef } from "react";
 import { useAuthStore } from "@/store/use-auth-store";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
+import { ScannerStatusIndicator } from "@/features/scanner/components/scanner-status-indicator";
 import { deleteSession as deleteSessionFromDB } from "@/lib/persistence-service";
 import { deleteSessionFiles } from "@/lib/storage-service";
 
@@ -150,8 +151,9 @@ export function Header() {
         )}
       </div>
 
-      {/* Right Side Actions (User Profile etc - Future) */}
-      <div className="ml-4 flex items-center gap-2 shrink-0">
+      {/* Right Side Actions */}
+      <div className="ml-4 flex items-center gap-3 shrink-0">
+        <ScannerStatusIndicator />
         {!isAuthenticated ? (
           <GoogleLoginButton 
             onClick={signInWithGoogle} 
