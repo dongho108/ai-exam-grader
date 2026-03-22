@@ -20,6 +20,50 @@ export function AnswerKeyManagement() {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [previewKeyId, setPreviewKeyId] = useState<string | null>(null)
 
+  const handleScannerScan = async () => {
+    const pendingId = uuidv4()
+    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: '스캐너 스캔 중...' }])
+
+    try {
+      const { filePath, mimeType } = await window.electronAPI!.scanner.scan()
+      const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
+
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      const blob = new Blob([bytes], { type: mimeType })
+      const file = new File([blob], `scan-${Date.now()}.pdf`, { type: mimeType })
+
+      const structure = await extractAnswerStructure(file)
+
+      addAnswerKey({
+        id: uuidv4(),
+        title: structure.title || '스캔된 정답지',
+        file,
+        structure,
+        createdAt: Date.now(),
+      })
+
+      await window.electronAPI!.scanner.cleanupScanFile(filePath)
+    } catch (err) {
+      console.error('[AnswerKeyManagement] Scanner scan failed:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.includes('output file not found') || message.includes('No pages')) {
+        window.alert('스캐너에 문서가 감지되지 않았습니다. 급지대에 문서를 올려놓고 다시 시도해 주세요.')
+      } else if (message.includes('timed out')) {
+        window.alert('스캔 시간이 초과되었습니다. 스캐너 상태를 확인해 주세요.')
+      } else if (message.includes('already in progress')) {
+        window.alert('이미 스캔이 진행 중입니다.')
+      } else {
+        window.alert('스캔에 실패했습니다. 스캐너 연결 상태를 확인해 주세요.')
+      }
+    } finally {
+      setPendingFiles((prev) => prev.filter((p) => p.id !== pendingId))
+    }
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -58,10 +102,7 @@ export function AnswerKeyManagement() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                // Scanner scan will be implemented in Part 2
-                console.log('[AnswerKeyManagement] Scanner scan requested')
-              }}
+              onClick={handleScannerScan}
             >
               <ScanLine className="mr-1.5 h-4 w-4" />
               스캐너로 스캔
