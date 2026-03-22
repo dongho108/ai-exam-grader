@@ -2,7 +2,7 @@
 
 import { useTabStore } from "@/store/use-tab-store";
 import { cn } from "@/lib/utils";
-import { Plus, X, LogOut, Download } from "lucide-react";
+import { Plus, X, LogOut, Download, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState, useRef } from "react";
 import { isElectron } from "@/lib/is-electron";
@@ -18,6 +18,7 @@ export function Header() {
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [latestTag, setLatestTag] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Initialize with one tab if empty on mount (Client-side only)
@@ -35,6 +36,7 @@ export function Header() {
         if (!data?.assets) return;
         const exe = data.assets.find((a: { name: string }) => a.name.endsWith(".exe"));
         if (exe) setDownloadUrl(exe.browser_download_url);
+        if (data.tag_name) setLatestTag(data.tag_name);
       })
       .catch(() => {});
   }, []);
@@ -167,23 +169,41 @@ export function Header() {
       {/* Right Side Actions */}
       <div className="ml-4 flex items-center gap-3 shrink-0">
         <ScannerStatusIndicator />
-        {downloadUrl && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => {
-              if (isElectron()) {
-                window.electronAPI?.openExternal(downloadUrl);
-              } else {
-                window.open(downloadUrl, "_blank");
-              }
-            }}
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">다운로드</span>
-          </Button>
-        )}
+        {(() => {
+          const isDesktop = isElectron();
+          const currentVersion = process.env.NEXT_PUBLIC_APP_VERSION;
+          const hasUpdate = isDesktop && currentVersion && latestTag && currentVersion !== latestTag;
+
+          if (isDesktop && hasUpdate && downloadUrl) {
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => window.electronAPI?.openExternal(downloadUrl)}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">업데이트</span>
+              </Button>
+            );
+          }
+
+          if (!isDesktop && downloadUrl) {
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => window.open(downloadUrl, "_blank")}
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">다운로드</span>
+              </Button>
+            );
+          }
+
+          return null;
+        })()}
         {!isAuthenticated ? (
           <GoogleLoginButton 
             onClick={signInWithGoogle} 
