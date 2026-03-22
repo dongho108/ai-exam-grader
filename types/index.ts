@@ -41,7 +41,7 @@ export interface ScannerDevice {
 
 export interface ScannerAvailability {
   available: boolean;
-  reason?: 'windows-only' | 'naps2-not-found';
+  reason?: 'windows-only' | 'naps2-not-found' | 'no-device-found';
   path?: string;
 }
 

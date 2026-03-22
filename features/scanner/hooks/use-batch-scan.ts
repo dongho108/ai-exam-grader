@@ -101,7 +101,12 @@ export function useBatchScan(): UseBatchScanReturn {
             break
           }
         } else {
-          setLastError(message)
+          const occupiedKeywords = ['in use', 'busy', 'locked', 'exclusive', 'denied']
+          if (occupiedKeywords.some(kw => lowerMessage.includes(kw))) {
+            setLastError('다른 프로그램이 스캐너를 사용 중입니다. 해당 프로그램을 종료한 후 다시 시도해 주세요.')
+          } else {
+            setLastError(message)
+          }
           break
         }
       }
