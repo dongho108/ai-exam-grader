@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     scan: (options?: Record<string, unknown>) => ipcRenderer.invoke('scanner:scan', options),
     readScanFile: (filePath: string) => ipcRenderer.invoke('scanner:read-scan-file', filePath),
     cleanupScanFile: (filePath: string) => ipcRenderer.invoke('scanner:cleanup-scan-file', filePath),
+    launchOnTouchLite: (exePath: string) => ipcRenderer.invoke('scanner:launch-ontouch-lite', exePath),
+    importFromFolder: () => ipcRenderer.invoke('scanner:import-from-folder'),
+    importFromDrive: (driveLetter: string) => ipcRenderer.invoke('scanner:import-from-drive', driveLetter),
   },
   updater: {
     checkForUpdate: () => ipcRenderer.invoke('update:check'),

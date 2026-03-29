@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, X, Upload, FileText } from "lucide-react"
+import { AlertCircle, X, Upload, FileText, Usb, FolderOpen, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useScanStore } from "@/store/use-scan-store"
 import { useBatchScan } from "../hooks/use-batch-scan"
-import type { ScanOptions } from "@/types"
+import { useScannerAvailability } from "../hooks/use-scanner-availability"
+import type { ScanOptions, ScannerDevice } from "@/types"
 
 interface BatchScanModalProps {
   open: boolean
@@ -20,14 +21,21 @@ type PageMode = "auto" | "fixed"
 
 export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModalProps) {
   const { answerKeys } = useScanStore()
-  const { isScanning, pageCount, lastError, startScan, stopScan, addFiles, isDevMode } = useBatchScan()
+  const { isScanning, pageCount, lastError, startScan, stopScan, addFiles, importFromFolder, importFromDrive, isDevMode } = useBatchScan()
+  const { devices } = useScannerAvailability()
 
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
+  const [selectedDevice, setSelectedDevice] = useState<ScannerDevice | null>(null)
   const [source, setSource] = useState<Source>("feeder")
   const [dpi, setDpi] = useState<Dpi>(300)
   const [colorMode, setColorMode] = useState<ColorMode>("bw")
   const [pageMode, setPageMode] = useState<PageMode>("auto")
   const [fixedPageCount, setFixedPageCount] = useState(2)
+  const [onTouchLaunched, setOnTouchLaunched] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+
+  const usbDevices = devices.filter(d => d.driver === 'usb-drive')
+  const isUsbMode = selectedDevice?.driver === 'usb-drive'
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const wasScanningRef = useRef(false)
@@ -126,6 +134,49 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
             )}
           </section>
 
+          {/* 디바이스 선택 (USB 디바이스가 있을 때) */}
+          {!isDevMode && usbDevices.length > 0 && (
+            <section>
+              <h3 className="mb-3 text-sm font-semibold text-gray-700">스캐너 선택</h3>
+              <div className="space-y-2">
+                {/* TWAIN/WIA 옵션 */}
+                <label
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                    !isUsbMode ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="deviceType"
+                    checked={!isUsbMode}
+                    onChange={() => setSelectedDevice(null)}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  <span className="text-sm text-gray-900">TWAIN/WIA 스캐너</span>
+                </label>
+                {/* USB 디바이스들 */}
+                {usbDevices.map((d, i) => (
+                  <label
+                    key={`usb-${i}`}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                      selectedDevice === d ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="deviceType"
+                      checked={selectedDevice === d}
+                      onChange={() => { setSelectedDevice(d); setOnTouchLaunched(false) }}
+                      className="h-4 w-4 accent-blue-600"
+                    />
+                    <Usb className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-900">{d.name}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
+          )}
+
           {isDevMode ? (
             /* Dev 모드: 파일 업로드로 스캔 대체 */
             <section>
@@ -160,8 +211,97 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
                 </div>
               )}
             </section>
+          ) : isUsbMode ? (
+            /* USB 드라이브 모드 */
+            <section>
+              <h3 className="mb-3 text-sm font-semibold text-gray-700">
+                <Usb className="inline h-4 w-4 mr-1" />
+                USB 스캐너
+              </h3>
+              {selectedDevice?.onTouchLitePath ? (
+                /* Canon 모드: ONTOUCHL.exe 실행 → 폴더 가져오기 */
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                    <p className="text-sm text-blue-800 font-medium mb-2">Canon 스캐너 워크플로우</p>
+                    <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
+                      <li>아래 버튼으로 Capture OnTouch Lite를 실행하세요</li>
+                      <li>OnTouch Lite에서 스캔한 이미지를 원하는 폴더에 저장하세요</li>
+                      <li>&quot;이미지 가져오기&quot; 버튼으로 저장된 이미지를 가져오세요</li>
+                    </ol>
+                  </div>
+                  {!onTouchLaunched ? (
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        window.electronAPI!.scanner.launchOnTouchLite(selectedDevice.onTouchLitePath!)
+                        setOnTouchLaunched(true)
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Capture OnTouch Lite 실행
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-xs text-green-700">
+                        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                        OnTouch Lite가 실행되었습니다. 이미지를 저장한 후 아래 버튼을 누르세요.
+                      </div>
+                      <Button
+                        className="w-full"
+                        variant="primary"
+                        disabled={isImporting}
+                        onClick={async () => {
+                          setIsImporting(true)
+                          await importFromFolder()
+                          setIsImporting(false)
+                        }}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                        {isImporting ? '가져오는 중...' : '이미지 가져오기 (폴더 선택)'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : selectedDevice?.hasImageFiles ? (
+                /* 일반 USB: 드라이브에서 직접 가져오기 */
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    USB 드라이브에서 이미지 파일을 가져옵니다.
+                  </p>
+                  <Button
+                    className="w-full"
+                    disabled={isImporting}
+                    onClick={async () => {
+                      setIsImporting(true)
+                      await importFromDrive(selectedDevice.driveLetter!)
+                      setIsImporting(false)
+                    }}
+                  >
+                    <Usb className="h-4 w-4 mr-2" />
+                    {isImporting ? '가져오는 중...' : `USB에서 이미지 가져오기 (${selectedDevice.driveLetter})`}
+                  </Button>
+                  <button
+                    className="text-xs text-blue-600 hover:underline"
+                    disabled={isImporting}
+                    onClick={async () => {
+                      setIsImporting(true)
+                      await importFromFolder()
+                      setIsImporting(false)
+                    }}
+                  >
+                    다른 폴더에서 가져오기...
+                  </button>
+                </div>
+              ) : null}
+              {pageCount > 0 && (
+                <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 px-4 py-2.5 text-sm text-green-700">
+                  <FileText className="h-4 w-4" />
+                  <span>{pageCount}개 이미지 가져옴</span>
+                </div>
+              )}
+            </section>
           ) : (
-            /* 프로덕션: 스캔 설정 */
+            /* 프로덕션: TWAIN/WIA 스캔 설정 */
             <>
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-gray-700">스캔 설정</h3>
@@ -291,7 +431,7 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
               <Button variant="outline" onClick={onClose}>
                 취소
               </Button>
-              {isDevMode ? (
+              {isDevMode || isUsbMode ? (
                 <Button
                   onClick={onScanComplete}
                   disabled={!selectedKeyId || answerKeys.length === 0 || pageCount === 0}

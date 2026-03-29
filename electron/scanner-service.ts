@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { execFile, ChildProcess } from 'child_process';
+import { execFile, execFileSync, ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -8,6 +8,7 @@ const VALID_DPI_RANGE = { min: 75, max: 1200 };
 const VALID_COLOR_MODES = ['color', 'gray', 'bw'] as const;
 const VALID_SOURCES = ['glass', 'feeder', 'duplex'] as const;
 const VALID_FORMATS = ['pdf', 'jpeg', 'png'] as const;
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.pdf', '.tiff', '.tif', '.bmp'] as const;
 
 const FORMAT_TO_MIME: Record<string, string> = {
   pdf: 'application/pdf',
@@ -31,7 +32,10 @@ interface ScanResult {
 
 interface ScannerDevice {
   name: string;
-  driver: 'twain' | 'wia';
+  driver: 'twain' | 'wia' | 'usb-drive';
+  driveLetter?: string;
+  onTouchLitePath?: string;
+  hasImageFiles?: boolean;
 }
 
 interface ScannerAvailability {
@@ -64,11 +68,84 @@ export class ScannerService {
   }
 
   /**
+   * 포터블 모드를 우회한 NAPS2 복사본 경로를 반환한다.
+   */
+  private get naps2AppDir(): string {
+    return path.join(app.getPath('userData'), 'naps2-app');
+  }
+
+  /**
    * NAPS2 실행 시 사용할 환경변수를 반환한다.
    * NAPS2_DATA를 설정하여 Program Files 내 Data 폴더 생성 문제를 회피한다.
    */
   private get naps2Env(): NodeJS.ProcessEnv {
     return { ...process.env, NAPS2_DATA: this.naps2DataDir };
+  }
+
+  /**
+   * NAPS2.Portable.exe가 있으면 포터블 모드가 활성화되어 NAPS2_DATA를 무시한다.
+   * 이를 우회하기 위해 쓰기 가능한 위치에 비포터블 복사본을 생성한다.
+   * - exe와 설정 파일만 복사 (~170KB)
+   * - lib/ 디렉토리는 원본으로의 정션(junction) 생성
+   */
+  private ensureNonPortable(originalExePath: string): string {
+    const originalAppDir = path.dirname(originalExePath);
+    const naps2Root = path.dirname(originalAppDir);
+    const portableMarker = path.join(naps2Root, 'NAPS2.Portable.exe');
+
+    if (!fs.existsSync(portableMarker)) {
+      return originalExePath;
+    }
+
+    console.log('[Scanner] ensureNonPortable: 포터블 마커 발견, 비포터블 복사본 생성');
+
+    const destAppDir = path.join(this.naps2AppDir, 'App');
+    const destExePath = path.join(destAppDir, 'NAPS2.Console.exe');
+    const destLibDir = path.join(destAppDir, 'lib');
+
+    // 이미 복사본이 있으면 재사용
+    if (fs.existsSync(destExePath) && fs.existsSync(destLibDir)) {
+      console.log('[Scanner] ensureNonPortable: 기존 복사본 사용:', destExePath);
+      return destExePath;
+    }
+
+    fs.mkdirSync(destAppDir, { recursive: true });
+
+    // exe와 설정 파일 복사
+    const filesToCopy = ['NAPS2.Console.exe', 'appsettings.xml'];
+    for (const file of filesToCopy) {
+      const src = path.join(originalAppDir, file);
+      const dest = path.join(destAppDir, file);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, dest);
+        console.log('[Scanner] ensureNonPortable: 복사:', file);
+      }
+    }
+
+    // lib/ 디렉토리 정션 생성 (151MB 복사 회피)
+    if (!fs.existsSync(destLibDir)) {
+      const originalLibDir = path.join(originalAppDir, 'lib');
+      try {
+        execFileSync('powershell', [
+          '-Command',
+          `New-Item -ItemType Junction -Path '${destLibDir}' -Target '${originalLibDir}' -Force`,
+        ], { timeout: 5000 });
+        console.log('[Scanner] ensureNonPortable: lib/ 정션 생성 완료');
+      } catch (err) {
+        console.error('[Scanner] ensureNonPortable: lib/ 정션 생성 실패:', (err as Error).message);
+        // 정션 실패 시 원본 경로로 폴백
+        return originalExePath;
+      }
+    }
+
+    // naps2-data 디렉토리 생성
+    if (!fs.existsSync(this.naps2DataDir)) {
+      fs.mkdirSync(this.naps2DataDir, { recursive: true });
+      console.log('[Scanner] ensureNonPortable: naps2-data 디렉토리 생성:', this.naps2DataDir);
+    }
+
+    console.log('[Scanner] ensureNonPortable: 비포터블 복사본 준비 완료:', destExePath);
+    return destExePath;
   }
 
   /**
@@ -111,8 +188,9 @@ export class ScannerService {
         }
         fs.accessSync(normalized, fs.constants.X_OK);
         console.log('[Scanner] findNaps2Path: 발견! 경로:', normalized);
-        this.cachedNaps2Path = normalized;
-        return normalized;
+        const resolvedPath = this.ensureNonPortable(normalized);
+        this.cachedNaps2Path = resolvedPath;
+        return resolvedPath;
       } catch (err) {
         console.log('[Scanner] findNaps2Path: 후보 실패:', candidate, '→', (err as Error).message);
       }
@@ -195,49 +273,231 @@ export class ScannerService {
 
   /**
    * 연결된 스캐너 목록을 반환한다.
-   * TWAIN → WIA 순차 fallback, 마지막 성공 드라이버 캐싱.
+   * TWAIN/WIA + USB 드라이브 스캐너를 모두 조회한다.
    */
   async listDevices(): Promise<ListDevicesResult> {
+    const allDevices: ScannerDevice[] = [];
+    let naps2Error: ListDevicesResult['error'];
+
+    // 1. NAPS2 (TWAIN/WIA) 조회
     const naps2Path = this.findNaps2Path();
     if (!naps2Path) {
-      console.error('[Scanner] listDevices: NAPS2 경로 없음');
-      return { devices: [], error: { type: 'unknown', message: 'NAPS2 not found' } };
+      naps2Error = { type: 'unknown', message: 'NAPS2 not found' };
+    } else if (naps2Path) {
+      const primaryDriver = this.lastSuccessfulDriver ?? 'twain';
+      const secondaryDriver: 'twain' | 'wia' = primaryDriver === 'twain' ? 'wia' : 'twain';
+
+      console.log('[Scanner] listDevices: primary =', primaryDriver, ', secondary =', secondaryDriver);
+
+      const primaryResult = await this.listDevicesByDriver(primaryDriver);
+
+      if (primaryResult.error?.type === 'permission') {
+        return primaryResult;
+      }
+
+      if (primaryResult.devices.length > 0) {
+        this.lastSuccessfulDriver = primaryDriver;
+        allDevices.push(...primaryResult.devices);
+      } else {
+        console.log('[Scanner] listDevices:', primaryDriver, '결과 없음 →', secondaryDriver, 'fallback');
+        const secondaryResult = await this.listDevicesByDriver(secondaryDriver);
+
+        if (secondaryResult.error?.type === 'permission') {
+          return secondaryResult;
+        }
+
+        if (secondaryResult.devices.length > 0) {
+          this.lastSuccessfulDriver = secondaryDriver;
+          allDevices.push(...secondaryResult.devices);
+        } else {
+          naps2Error = secondaryResult.error ?? primaryResult.error;
+        }
+      }
     }
 
-    const primaryDriver = this.lastSuccessfulDriver ?? 'twain';
-    const secondaryDriver: 'twain' | 'wia' = primaryDriver === 'twain' ? 'wia' : 'twain';
-
-    console.log('[Scanner] listDevices: primary =', primaryDriver, ', secondary =', secondaryDriver);
-
-    // Primary driver 시도
-    const primaryResult = await this.listDevicesByDriver(primaryDriver);
-
-    // 권한 에러는 terminal — fallback 하지 않음
-    if (primaryResult.error?.type === 'permission') {
-      return primaryResult;
+    // 2. USB 드라이브 스캐너 조회
+    try {
+      const usbDevices = await this.detectUsbScanners();
+      allDevices.push(...usbDevices);
+    } catch (err) {
+      console.warn('[Scanner] listDevices: USB 스캐너 감지 실패:', (err as Error).message);
     }
 
-    // 디바이스 발견 시 캐싱 후 반환
-    if (primaryResult.devices.length > 0) {
-      this.lastSuccessfulDriver = primaryDriver;
-      return primaryResult;
+    if (allDevices.length > 0) {
+      return { devices: allDevices };
     }
 
-    // Secondary driver로 fallback
-    console.log('[Scanner] listDevices:', primaryDriver, '결과 없음 →', secondaryDriver, 'fallback');
-    const secondaryResult = await this.listDevicesByDriver(secondaryDriver);
+    return { devices: [], error: naps2Error };
+  }
 
-    if (secondaryResult.error?.type === 'permission') {
-      return secondaryResult;
+  /**
+   * 이동식 USB 드라이브에서 스캐너를 감지한다.
+   * - ONTOUCHL.exe가 있으면 Canon 모드
+   * - 이미지 파일이 있으면 일반 USB 모드
+   */
+  async detectUsbScanners(): Promise<ScannerDevice[]> {
+    if (process.platform !== 'win32') return [];
+
+    const devices: ScannerDevice[] = [];
+
+    try {
+      const psOutput = execFileSync('powershell', [
+        '-Command',
+        "Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 } | Select-Object DeviceID, VolumeName | ConvertTo-Json -Compress",
+      ], { timeout: 5000, encoding: 'utf8' });
+
+      const parsed = JSON.parse(psOutput || '[]');
+      const drives: Array<{ DeviceID: string; VolumeName: string | null }> =
+        Array.isArray(parsed) ? parsed : [parsed];
+
+      for (const drive of drives) {
+        if (!drive.DeviceID) continue;
+        const driveLetter = drive.DeviceID;
+        const drivePath = driveLetter + '\\';
+        const volumeName = drive.VolumeName ?? '';
+
+        // Canon ONTOUCHL.exe 확인
+        const onTouchPath = path.join(drivePath, 'ONTOUCHL.exe');
+        if (fs.existsSync(onTouchPath)) {
+          const modelName = this.extractCanonModel(volumeName, drivePath);
+          devices.push({
+            name: `${modelName} (USB)`,
+            driver: 'usb-drive',
+            driveLetter,
+            onTouchLitePath: onTouchPath,
+          });
+          console.log('[Scanner] detectUsbScanners: Canon 감지:', driveLetter, modelName);
+          continue;
+        }
+
+        // 일반 이미지 파일 확인
+        if (this.hasImageFiles(drivePath)) {
+          devices.push({
+            name: `USB 스캐너 (${driveLetter})`,
+            driver: 'usb-drive',
+            driveLetter,
+            hasImageFiles: true,
+          });
+          console.log('[Scanner] detectUsbScanners: 이미지 드라이브 감지:', driveLetter);
+        }
+      }
+    } catch (err) {
+      console.warn('[Scanner] detectUsbScanners: 에러:', (err as Error).message);
     }
 
-    if (secondaryResult.devices.length > 0) {
-      this.lastSuccessfulDriver = secondaryDriver;
-      return secondaryResult;
+    return devices;
+  }
+
+  /**
+   * Canon 모델명을 추출한다.
+   */
+  private extractCanonModel(volumeName: string, drivePath: string): string {
+    // TOUCHDRL.ini에서 Scanner 필드 읽기
+    try {
+      const iniPath = path.join(drivePath, 'TOUCHDRL.ini');
+      if (fs.existsSync(iniPath)) {
+        const content = fs.readFileSync(iniPath, 'utf8');
+        const match = content.match(/Scanner\s*=\s*(.+)/i);
+        if (match) return `Canon ${match[1].trim()}`;
+      }
+    } catch { /* ignore */ }
+
+    // 볼륨 이름으로 추론
+    if (volumeName.toUpperCase().includes('ONTOUCH')) return 'Canon Scanner';
+    return 'Canon Scanner';
+  }
+
+  /**
+   * 디렉토리에 이미지 파일이 있는지 확인한다 (1단계 깊이만).
+   */
+  private hasImageFiles(dirPath: string): boolean {
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      return entries.some(e =>
+        e.isFile() && IMAGE_EXTENSIONS.includes(path.extname(e.name).toLowerCase() as typeof IMAGE_EXTENSIONS[number])
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Canon Capture OnTouch Lite를 실행한다.
+   */
+  launchOnTouchLite(exePath: string): void {
+    const normalized = path.normalize(exePath);
+
+    // 보안: 이동식 드라이브 루트의 ONTOUCHL.exe만 허용
+    if (!normalized.endsWith('ONTOUCHL.exe') && !normalized.endsWith('ONTOUCHL.EXE')) {
+      throw new Error('Invalid OnTouch Lite path');
     }
 
-    // 둘 다 빈 결과
-    return { devices: [] };
+    if (!fs.existsSync(normalized)) {
+      throw new Error('OnTouch Lite not found: ' + normalized);
+    }
+
+    console.log('[Scanner] launchOnTouchLite:', normalized);
+    const child = execFile(normalized, [], { detached: true, cwd: path.dirname(normalized) });
+    child.unref();
+  }
+
+  /**
+   * 폴더에서 이미지/PDF 파일을 검색하여 임시 디렉토리에 복사한다.
+   */
+  importFromFolder(folderPath: string): { files: Array<{ filePath: string; mimeType: string }> } {
+    const normalized = path.normalize(folderPath);
+    if (!fs.existsSync(normalized) || !fs.statSync(normalized).isDirectory()) {
+      throw new Error('Invalid folder path: ' + normalized);
+    }
+
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true });
+    }
+
+    const results: Array<{ filePath: string; mimeType: string }> = [];
+    const entries = fs.readdirSync(normalized, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!IMAGE_EXTENSIONS.includes(ext as typeof IMAGE_EXTENSIONS[number])) continue;
+
+      const srcPath = path.join(normalized, entry.name);
+      const destName = `${crypto.randomUUID()}${ext}`;
+      const destPath = path.join(this.tempDir, destName);
+
+      fs.copyFileSync(srcPath, destPath);
+
+      const mimeType = this.extToMime(ext);
+      results.push({ filePath: destPath, mimeType });
+    }
+
+    console.log('[Scanner] importFromFolder:', normalized, '→', results.length, '파일');
+    return { files: results };
+  }
+
+  /**
+   * USB 드라이브에서 직접 이미지 파일을 가져온다.
+   */
+  importFromDrive(driveLetter: string): { files: Array<{ filePath: string; mimeType: string }> } {
+    // 보안: 드라이브 문자 형식 검증 (예: "E:")
+    if (!/^[A-Z]:$/i.test(driveLetter)) {
+      throw new Error('Invalid drive letter: ' + driveLetter);
+    }
+    return this.importFromFolder(driveLetter + '\\');
+  }
+
+  private extToMime(ext: string): string {
+    const map: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.pdf': 'application/pdf',
+      '.tiff': 'image/tiff',
+      '.tif': 'image/tiff',
+      '.bmp': 'image/bmp',
+    };
+    return map[ext] || 'application/octet-stream';
   }
 
   /**

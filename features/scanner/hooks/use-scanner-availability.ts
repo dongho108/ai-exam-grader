@@ -45,6 +45,9 @@ export function useScannerAvailability(): UseScannerAvailabilityReturn {
       const mapped: ScannerDevice[] = (result.devices ?? []).map(d => ({
         name: d.name,
         driver: d.driver as ScannerDevice['driver'],
+        ...(d.driveLetter && { driveLetter: d.driveLetter }),
+        ...(d.onTouchLitePath && { onTouchLitePath: d.onTouchLitePath }),
+        ...(d.hasImageFiles !== undefined && { hasImageFiles: d.hasImageFiles }),
       }))
       setDevices(mapped)
       if (mapped.length === 0) {
@@ -77,13 +80,11 @@ export function useScannerAvailability(): UseScannerAvailabilityReturn {
       console.log('[Scanner UI] checkAvailability: IPC 호출 시작')
       const result = await window.electronAPI!.scanner.checkAvailability()
       console.log('[Scanner UI] checkAvailability: 결과:', JSON.stringify(result))
-      if (result.available) {
-        await fetchDevices()
-      } else {
-        console.warn('[Scanner UI] checkAvailability: 사용 불가, reason:', result.reason)
-        setAvailable(false)
-        setReason(result.reason as ScannerAvailability['reason'])
-        setDevices([])
+      // NAPS2 유무와 관계없이 항상 디바이스 조회 (USB 스캐너 감지를 위해)
+      await fetchDevices()
+      if (!result.available) {
+        console.warn('[Scanner UI] checkAvailability: NAPS2 사용 불가, reason:', result.reason)
+        // fetchDevices에서 USB 디바이스를 찾았을 수 있으므로 available 상태는 fetchDevices가 관리
       }
     } catch (err) {
       console.error('[Scanner UI] checkAvailability: 에러:', err)

@@ -22,6 +22,9 @@ interface UseBatchScanReturn {
   stopScan: () => void
   /** Dev 모드 전용: 파일을 직접 추가 (스캔 대체) */
   addFiles: (files: File[]) => void
+  /** USB 스캐너: IPC로 가져온 파일을 스캔 결과로 추가 */
+  importFromFolder: () => Promise<number>
+  importFromDrive: (driveLetter: string) => Promise<number>
   isDevMode: boolean
 }
 
@@ -132,6 +135,40 @@ export function useBatchScan(): UseBatchScanReturn {
     shouldStopRef.current = true
   }, [])
 
+  /** USB 스캐너: IPC 결과를 스캔 페이지로 변환하는 공통 헬퍼 */
+  const processImportResult = useCallback(async (
+    importFn: () => Promise<{ files: Array<{ filePath: string; mimeType: string }> }>
+  ): Promise<number> => {
+    setLastError(null)
+    try {
+      const result = await importFn()
+      const files = result.files ?? []
+      let count = pageCount
+      for (const { filePath, mimeType } of files) {
+        const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
+        const ext = mimeType.split('/')[1] ?? 'jpeg'
+        const file = base64ToFile(base64, `import-${count}.${ext}`, mimeType)
+        addScannedPage({ id: uuidv4(), file })
+        await window.electronAPI!.scanner.cleanupScanFile(filePath)
+        count += 1
+      }
+      setPageCount(count)
+      return files.length
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setLastError(message)
+      return 0
+    }
+  }, [addScannedPage, pageCount])
+
+  const importFromFolder = useCallback(async (): Promise<number> => {
+    return processImportResult(() => window.electronAPI!.scanner.importFromFolder())
+  }, [processImportResult])
+
+  const importFromDrive = useCallback(async (driveLetter: string): Promise<number> => {
+    return processImportResult(() => window.electronAPI!.scanner.importFromDrive(driveLetter))
+  }, [processImportResult])
+
   return {
     isScanning,
     pageCount,
@@ -139,6 +176,8 @@ export function useBatchScan(): UseBatchScanReturn {
     startScan,
     stopScan,
     addFiles,
+    importFromFolder,
+    importFromDrive,
     isDevMode,
   }
 }

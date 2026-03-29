@@ -37,7 +37,13 @@ export interface ScanResult {
 
 export interface ScannerDevice {
   name: string;
-  driver: 'twain' | 'wia';
+  driver: 'twain' | 'wia' | 'usb-drive';
+  /** USB 드라이브 문자 (예: 'E:') — driver가 'usb-drive'일 때 */
+  driveLetter?: string;
+  /** Canon ONTOUCHL.exe 경로 — 있으면 Canon 전용 워크플로우 */
+  onTouchLitePath?: string;
+  /** USB 드라이브에 이미지 파일이 직접 존재하는지 여부 */
+  hasImageFiles?: boolean;
 }
 
 export interface ScannerAvailability {

@@ -178,6 +178,15 @@ async function main() {
     console.log('  Removed Data/ directory to force NAPS2_DATA env var usage');
   }
 
+  // Remove NAPS2.Portable.exe to disable portable mode.
+  // Portable mode ignores NAPS2_DATA env var and always writes to {exe_dir}/../Data/,
+  // which is read-only under Program Files.
+  const portableExe = path.join(DEST_DIR, 'NAPS2.Portable.exe');
+  if (fs.existsSync(portableExe)) {
+    fs.rmSync(portableExe);
+    console.log('  Removed NAPS2.Portable.exe to disable portable mode');
+  }
+
   // Write version marker
   fs.writeFileSync(VERSION_FILE, NAPS2_VERSION, 'utf8');
   console.log(`\nNAPS2 v${NAPS2_VERSION} installed to ${DEST_DIR}`);

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, protocol, net, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, protocol, net, ipcMain, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import url from 'url';
@@ -232,6 +232,51 @@ app.whenReady().then(() => {
       console.log('[Scanner IPC] cleanup-scan-file 성공');
     } catch (err) {
       console.error('[Scanner IPC] cleanup-scan-file 에러:', (err as Error).message);
+      throw err;
+    }
+  });
+
+  // USB 스캐너: Capture OnTouch Lite 실행
+  ipcMain.handle('scanner:launch-ontouch-lite', (_event, exePath: string) => {
+    console.log('[Scanner IPC] launch-ontouch-lite 호출:', exePath);
+    try {
+      scannerService.launchOnTouchLite(exePath);
+      return { success: true };
+    } catch (err) {
+      console.error('[Scanner IPC] launch-ontouch-lite 에러:', (err as Error).message);
+      throw err;
+    }
+  });
+
+  // USB 스캐너: 폴더 선택 → 이미지 가져오기
+  ipcMain.handle('scanner:import-from-folder', async () => {
+    console.log('[Scanner IPC] import-from-folder 호출');
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openDirectory'],
+      title: '스캔 이미지가 저장된 폴더를 선택하세요',
+    });
+    if (result.canceled || !result.filePaths[0]) {
+      return { files: [] };
+    }
+    try {
+      const importResult = scannerService.importFromFolder(result.filePaths[0]);
+      console.log('[Scanner IPC] import-from-folder 결과:', importResult.files.length, '파일');
+      return importResult;
+    } catch (err) {
+      console.error('[Scanner IPC] import-from-folder 에러:', (err as Error).message);
+      throw err;
+    }
+  });
+
+  // USB 스캐너: 드라이브에서 직접 이미지 가져오기
+  ipcMain.handle('scanner:import-from-drive', async (_event, driveLetter: string) => {
+    console.log('[Scanner IPC] import-from-drive 호출:', driveLetter);
+    try {
+      const importResult = scannerService.importFromDrive(driveLetter);
+      console.log('[Scanner IPC] import-from-drive 결과:', importResult.files.length, '파일');
+      return importResult;
+    } catch (err) {
+      console.error('[Scanner IPC] import-from-drive 에러:', (err as Error).message);
       throw err;
     }
   });
