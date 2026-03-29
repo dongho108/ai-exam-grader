@@ -53,7 +53,14 @@ export class ScannerService {
    * Program Files 내에 있는지 검증하여 보안을 확보한다.
    */
   findNaps2Path(): string | null {
-    if (this.cachedNaps2Path) return this.cachedNaps2Path;
+    if (this.cachedNaps2Path) {
+      console.log('[Scanner] findNaps2Path: 캐시된 경로 반환:', this.cachedNaps2Path);
+      return this.cachedNaps2Path;
+    }
+
+    console.log('[Scanner] findNaps2Path: 경로 탐색 시작');
+    console.log('[Scanner] findNaps2Path: resourcesPath =', process.resourcesPath);
+    console.log('[Scanner] findNaps2Path: appPath =', app.getAppPath());
 
     const candidates = [
       path.join(process.resourcesPath, 'naps2', 'App', 'NAPS2.Console.exe'),
@@ -76,16 +83,19 @@ export class ScannerService {
           normalized.startsWith(path.normalize(prefix))
         );
         if (!isTrusted) {
+          console.log('[Scanner] findNaps2Path: 신뢰할 수 없는 경로 건너뜀:', normalized);
           continue;
         }
         fs.accessSync(normalized, fs.constants.X_OK);
+        console.log('[Scanner] findNaps2Path: 발견! 경로:', normalized);
         this.cachedNaps2Path = normalized;
         return normalized;
-      } catch {
-        // 파일 없음 → 다음 후보
+      } catch (err) {
+        console.log('[Scanner] findNaps2Path: 후보 실패:', candidate, '→', (err as Error).message);
       }
     }
 
+    console.warn('[Scanner] findNaps2Path: 모든 후보 경로에서 NAPS2를 찾지 못함');
     return null;
   }
 
@@ -93,15 +103,19 @@ export class ScannerService {
    * NAPS2 사용 가능 여부를 확인한다.
    */
   isAvailable(): ScannerAvailability {
+    console.log('[Scanner] isAvailable: 플랫폼 =', process.platform);
     if (process.platform !== 'win32') {
+      console.warn('[Scanner] isAvailable: Windows가 아님 → available: false');
       return { available: false, reason: 'windows-only' };
     }
 
     const naps2Path = this.findNaps2Path();
     if (!naps2Path) {
+      console.warn('[Scanner] isAvailable: NAPS2를 찾지 못함 → available: false');
       return { available: false, reason: 'naps2-not-found' };
     }
 
+    console.log('[Scanner] isAvailable: 사용 가능! NAPS2 경로:', naps2Path);
     return { available: true, path: naps2Path };
   }
 
@@ -112,15 +126,23 @@ export class ScannerService {
     return new Promise((resolve, reject) => {
       const naps2Path = this.findNaps2Path();
       if (!naps2Path) {
+        console.error('[Scanner] listDevices: NAPS2 경로 없음');
         return reject(new Error('NAPS2 not found'));
       }
 
       const args = ['--listdevices', '--driver', 'twain'];
+      console.log('[Scanner] listDevices: 실행:', naps2Path, args.join(' '));
 
       execFile(naps2Path, args, { timeout: 10000 }, (error, stdout, stderr) => {
         if (error) {
+          console.error('[Scanner] listDevices: 에러:', error.message);
+          console.error('[Scanner] listDevices: stderr:', stderr);
+          console.error('[Scanner] listDevices: killed:', error.killed);
           return reject(new Error(`Failed to list devices: ${stderr || error.message}`));
         }
+
+        console.log('[Scanner] listDevices: stdout 원문:', JSON.stringify(stdout));
+        console.log('[Scanner] listDevices: stderr:', JSON.stringify(stderr));
 
         const devices: ScannerDevice[] = stdout
           .split('\n')
@@ -128,6 +150,7 @@ export class ScannerService {
           .filter((line) => line.length > 0)
           .map((name) => ({ name, driver: 'twain' as const }));
 
+        console.log('[Scanner] listDevices: 파싱된 디바이스 목록:', JSON.stringify(devices));
         resolve(devices);
       });
     });
@@ -137,12 +160,16 @@ export class ScannerService {
    * 스캔을 실행하고 임시 파일 경로를 반환한다.
    */
   async scan(options: ScanOptions = {}): Promise<ScanResult> {
+    console.log('[Scanner] scan: 호출됨, 옵션:', JSON.stringify(options));
+
     if (this.isScanning) {
+      console.warn('[Scanner] scan: 이미 스캔 진행 중');
       throw new Error('A scan is already in progress');
     }
 
     const naps2Path = this.findNaps2Path();
     if (!naps2Path) {
+      console.error('[Scanner] scan: NAPS2 경로 없음');
       throw new Error('NAPS2 not found');
     }
 
@@ -169,6 +196,7 @@ export class ScannerService {
 
     // 임시 디렉토리 생성
     if (!fs.existsSync(this.tempDir)) {
+      console.log('[Scanner] scan: 임시 디렉토리 생성:', this.tempDir);
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
 
@@ -190,6 +218,9 @@ export class ScannerService {
       args.push('--device', options.device);
     }
 
+    console.log('[Scanner] scan: 실행 명령:', naps2Path);
+    console.log('[Scanner] scan: CLI 인자:', args.join(' '));
+
     this.isScanning = true;
 
     try {
@@ -198,9 +229,15 @@ export class ScannerService {
           naps2Path,
           args,
           { timeout: 120000 },
-          (error, _stdout, stderr) => {
+          (error, stdout, stderr) => {
             this.currentProcess = null;
+            console.log('[Scanner] scan: stdout:', JSON.stringify(stdout));
+            console.log('[Scanner] scan: stderr:', JSON.stringify(stderr));
+
             if (error) {
+              console.error('[Scanner] scan: 에러:', error.message);
+              console.error('[Scanner] scan: killed:', error.killed);
+              console.error('[Scanner] scan: code:', (error as NodeJS.ErrnoException).code);
               // 타임아웃으로 종료된 경우
               if (error.killed) {
                 return reject(new Error('Scan timed out'));
@@ -209,19 +246,28 @@ export class ScannerService {
             }
 
             // 출력 파일 존재 확인
-            if (!fs.existsSync(tempPath)) {
+            const fileExists = fs.existsSync(tempPath);
+            console.log('[Scanner] scan: 출력 파일 존재:', fileExists, '경로:', tempPath);
+            if (!fileExists) {
               return reject(new Error('Scan completed but output file not found'));
             }
 
+            const fileSize = fs.statSync(tempPath).size;
+            console.log('[Scanner] scan: 출력 파일 크기:', fileSize, 'bytes');
             resolve();
           }
         );
+        console.log('[Scanner] scan: 프로세스 시작됨, PID:', this.currentProcess?.pid);
       });
 
+      console.log('[Scanner] scan: 성공! 파일:', tempPath);
       return {
         filePath: tempPath,
         mimeType: FORMAT_TO_MIME[format] || 'application/octet-stream',
       };
+    } catch (err) {
+      console.error('[Scanner] scan: 최종 에러:', (err as Error).message);
+      throw err;
     } finally {
       this.isScanning = false;
     }
@@ -231,34 +277,44 @@ export class ScannerService {
    * 임시 스캔 파일을 base64로 읽는다.
    */
   readScanFile(filePath: string): string {
+    console.log('[Scanner] readScanFile: 경로:', filePath);
     // 보안: tempDir 내의 파일만 허용
     const normalized = path.normalize(filePath);
     if (!normalized.startsWith(this.tempDir)) {
+      console.error('[Scanner] readScanFile: 접근 거부 - tempDir 밖:', normalized);
       throw new Error('Access denied: file is not in scan temp directory');
     }
 
     if (!fs.existsSync(normalized)) {
+      console.error('[Scanner] readScanFile: 파일 없음:', normalized);
       throw new Error('Scan file not found');
     }
 
-    return fs.readFileSync(normalized).toString('base64');
+    const buf = fs.readFileSync(normalized);
+    console.log('[Scanner] readScanFile: 읽기 성공, 크기:', buf.length, 'bytes');
+    return buf.toString('base64');
   }
 
   /**
    * 특정 임시 스캔 파일을 삭제한다.
    */
   cleanupScanFile(filePath: string): void {
+    console.log('[Scanner] cleanupScanFile: 대상:', filePath);
     const normalized = path.normalize(filePath);
     if (!normalized.startsWith(this.tempDir)) {
+      console.error('[Scanner] cleanupScanFile: 접근 거부 - tempDir 밖:', normalized);
       throw new Error('Access denied: file is not in scan temp directory');
     }
 
     try {
       if (fs.existsSync(normalized)) {
         fs.unlinkSync(normalized);
+        console.log('[Scanner] cleanupScanFile: 삭제 성공');
+      } else {
+        console.log('[Scanner] cleanupScanFile: 파일 이미 없음');
       }
-    } catch {
-      // 삭제 실패는 무시 (OS가 정리할 것)
+    } catch (err) {
+      console.warn('[Scanner] cleanupScanFile: 삭제 실패:', (err as Error).message);
     }
   }
 
@@ -266,9 +322,11 @@ export class ScannerService {
    * 모든 임시 스캔 파일을 정리한다.
    */
   cleanup(): void {
+    console.log('[Scanner] cleanup: 임시 디렉토리 정리 시작:', this.tempDir);
     try {
       if (fs.existsSync(this.tempDir)) {
         const files = fs.readdirSync(this.tempDir);
+        console.log('[Scanner] cleanup: 정리할 파일 수:', files.length);
         for (const file of files) {
           try {
             fs.unlinkSync(path.join(this.tempDir, file));
@@ -277,9 +335,12 @@ export class ScannerService {
           }
         }
         fs.rmdirSync(this.tempDir);
+        console.log('[Scanner] cleanup: 완료');
+      } else {
+        console.log('[Scanner] cleanup: 임시 디렉토리 없음, 건너뜀');
       }
-    } catch {
-      // 디렉토리 정리 실패 무시
+    } catch (err) {
+      console.warn('[Scanner] cleanup: 정리 실패:', (err as Error).message);
     }
   }
 
@@ -288,10 +349,12 @@ export class ScannerService {
    */
   killProcess(): void {
     if (this.currentProcess) {
+      console.log('[Scanner] killProcess: 프로세스 종료 시도, PID:', this.currentProcess.pid);
       try {
         this.currentProcess.kill();
-      } catch {
-        // kill 실패 무시
+        console.log('[Scanner] killProcess: 종료 성공');
+      } catch (err) {
+        console.warn('[Scanner] killProcess: 종료 실패:', (err as Error).message);
       }
       this.currentProcess = null;
       this.isScanning = false;

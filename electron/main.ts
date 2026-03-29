@@ -187,26 +187,61 @@ app.whenReady().then(() => {
 
   // Scanner IPC handlers
   ipcMain.handle('scanner:check-availability', () => {
-    return scannerService.isAvailable();
+    console.log('[Scanner IPC] check-availability 호출');
+    const result = scannerService.isAvailable();
+    console.log('[Scanner IPC] check-availability 결과:', JSON.stringify(result));
+    return result;
   });
 
   ipcMain.handle('scanner:list-devices', async () => {
-    return scannerService.listDevices();
+    console.log('[Scanner IPC] list-devices 호출');
+    try {
+      const devices = await scannerService.listDevices();
+      console.log('[Scanner IPC] list-devices 결과:', JSON.stringify(devices));
+      return devices;
+    } catch (err) {
+      console.error('[Scanner IPC] list-devices 에러:', (err as Error).message);
+      throw err;
+    }
   });
 
   ipcMain.handle('scanner:scan', async (_event, options) => {
-    return scannerService.scan(options);
+    console.log('[Scanner IPC] scan 호출, 옵션:', JSON.stringify(options));
+    try {
+      const result = await scannerService.scan(options);
+      console.log('[Scanner IPC] scan 결과:', JSON.stringify(result));
+      return result;
+    } catch (err) {
+      console.error('[Scanner IPC] scan 에러:', (err as Error).message);
+      throw err;
+    }
   });
 
   ipcMain.handle('scanner:read-scan-file', (_event, filePath: string) => {
-    return scannerService.readScanFile(filePath);
+    console.log('[Scanner IPC] read-scan-file 호출, 경로:', filePath);
+    try {
+      const base64 = scannerService.readScanFile(filePath);
+      console.log('[Scanner IPC] read-scan-file 성공, base64 길이:', base64.length);
+      return base64;
+    } catch (err) {
+      console.error('[Scanner IPC] read-scan-file 에러:', (err as Error).message);
+      throw err;
+    }
   });
 
   ipcMain.handle('scanner:cleanup-scan-file', (_event, filePath: string) => {
-    return scannerService.cleanupScanFile(filePath);
+    console.log('[Scanner IPC] cleanup-scan-file 호출, 경로:', filePath);
+    try {
+      scannerService.cleanupScanFile(filePath);
+      console.log('[Scanner IPC] cleanup-scan-file 성공');
+    } catch (err) {
+      console.error('[Scanner IPC] cleanup-scan-file 에러:', (err as Error).message);
+      throw err;
+    }
   });
 
   // 이전 세션의 잔여 임시 파일 정리
+  console.log('[Scanner] 앱 시작: 임시 파일 정리');
   scannerService.cleanup();
 
   createWindow();

@@ -21,7 +21,7 @@ export function useScannerAvailability(): UseScannerAvailabilityReturn {
 
   const fetchDevices = useCallback(async () => {
     if (isDev && !isElectron) {
-      // Dev 모드: 가짜 디바이스
+      console.log('[Scanner UI] fetchDevices: Dev 모드 → 가짜 디바이스')
       setDevices([{ name: 'Dev Scanner', driver: 'twain' }])
       return
     }
@@ -29,20 +29,25 @@ export function useScannerAvailability(): UseScannerAvailabilityReturn {
 
     setIsRefreshing(true)
     try {
+      console.log('[Scanner UI] fetchDevices: IPC 호출 시작')
       const list = await window.electronAPI!.scanner.listDevices()
+      console.log('[Scanner UI] fetchDevices: IPC 결과:', JSON.stringify(list))
       const mapped: ScannerDevice[] = list.map(d => ({
         name: d.name,
         driver: d.driver as ScannerDevice['driver'],
       }))
       setDevices(mapped)
       if (mapped.length === 0) {
+        console.log('[Scanner UI] fetchDevices: 디바이스 없음')
         setAvailable(false)
         setReason('no-device-found')
       } else {
+        console.log('[Scanner UI] fetchDevices: 디바이스 발견:', mapped.length, '개')
         setAvailable(true)
         setReason(undefined)
       }
-    } catch {
+    } catch (err) {
+      console.error('[Scanner UI] fetchDevices: 에러:', err)
       setDevices([])
     } finally {
       setIsRefreshing(false)
@@ -50,24 +55,28 @@ export function useScannerAvailability(): UseScannerAvailabilityReturn {
   }, [isElectron])
 
   const checkAvailability = useCallback(async () => {
+    console.log('[Scanner UI] checkAvailability: isElectron =', isElectron, ', isDev =', isDev)
     if (isDev && !isElectron) {
-      // Dev 모드 + 비-Electron: 항상 available
+      console.log('[Scanner UI] checkAvailability: Dev 모드 → 항상 available')
       setAvailable(true)
       fetchDevices()
       return
     }
     if (!isElectron) return
     try {
+      console.log('[Scanner UI] checkAvailability: IPC 호출 시작')
       const result = await window.electronAPI!.scanner.checkAvailability()
+      console.log('[Scanner UI] checkAvailability: 결과:', JSON.stringify(result))
       if (result.available) {
-        // NAPS2 존재 → 실제 디바이스 확인
         await fetchDevices()
       } else {
+        console.warn('[Scanner UI] checkAvailability: 사용 불가, reason:', result.reason)
         setAvailable(false)
         setReason(result.reason as ScannerAvailability['reason'])
         setDevices([])
       }
-    } catch {
+    } catch (err) {
+      console.error('[Scanner UI] checkAvailability: 에러:', err)
       setAvailable(false)
       setDevices([])
     }
