@@ -5,7 +5,7 @@ const shared = {
   platform: 'node',
   format: 'cjs',
   outdir: 'dist-electron',
-  external: ['electron'],
+  external: ['electron', '@aws-sdk/client-s3'],
   sourcemap: false,
   minify: false,
 };
