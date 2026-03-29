@@ -25,7 +25,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+
+      - name: Cache node_modules
+        id: node-modules-cache
+        if: ${{ inputs.no-cache != true }}
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Cache NAPS2
         if: ${{ inputs.no-cache != true }}
@@ -87,7 +94,9 @@ jobs:
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: npm ci
+      - name: Install dependencies
+        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' || inputs.no-cache == true }}
+        run: npm ci
       - name: Set version in package.json
         shell: bash
         run: npm version ${{ steps.tag.outputs.semver }} --no-git-tag-version --allow-same-version
