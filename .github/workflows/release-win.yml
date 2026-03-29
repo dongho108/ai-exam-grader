@@ -13,31 +13,48 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - name: Generate date tag
+      - name: Generate version and tag
         id: tag
         shell: bash
         run: |
-          TAG="$(date +'%Y-%m-%d')"
+          DATE_TAG="$(date +'%Y-%m-%d')"
+          MONTH=$(date +'%-m')
+          DAY=$(date +'%-d')
+          YEAR=$(date +'%Y')
+          MMDD=$(printf '%02d%02d' "$MONTH" "$DAY")
+
           # 같은 날 여러 빌드 시 suffix 추가
-          COUNT=$(gh release list --limit 100 | grep -c "^${TAG}" || true)
+          COUNT=$(gh release list --limit 100 | grep -c "^${DATE_TAG}" || true)
           if [ "$COUNT" -gt "0" ]; then
-            TAG="${TAG}-${COUNT}"
+            FILE_TAG="${DATE_TAG}-${COUNT}"
+            SEMVER="${YEAR}.${MMDD}.${COUNT}"
+          else
+            FILE_TAG="${DATE_TAG}"
+            SEMVER="${YEAR}.${MMDD}.0"
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          echo "tag=$FILE_TAG" >> "$GITHUB_OUTPUT"
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm ci
+      - name: Set version in package.json
+        shell: bash
+        run: npm version ${{ steps.tag.outputs.semver }} --no-git-tag-version --allow-same-version
       - run: npm run naps2:download
-      - run: npm run electron:build:win
+      - name: Create git tag
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.tag.outputs.semver }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish
+        run: npx next build && npm run electron:compile && npx electron-builder --win --publish always
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_VERSION: ${{ steps.tag.outputs.tag }}
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Release ${{ steps.tag.outputs.tag }}
-          files: release/*.exe
-          draft: false
-          generate_release_notes: true

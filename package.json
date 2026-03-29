@@ -22,6 +22,7 @@
     "@supabase/supabase-js": "^2.93.3",
     "@types/uuid": "^10.0.0",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
@@ -53,7 +54,7 @@
   },
   "build": {
     "appId": "com.ai-exam-grader.app",
-    "productName": "AI Grader",
+    "productName": "Gradely",
     "directories": {
       "output": "release"
     },
@@ -95,8 +96,17 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "guid": "com.ai-exam-grader.app",
+      "artifactName": "Gradely.Setup.${env.NEXT_PUBLIC_APP_VERSION}.exe"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dongho108",
+        "repo": "ai-exam-grader"
+      }
+    ],
     "protocols": [
       {
         "name": "AI Exam Grader",

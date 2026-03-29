@@ -17,6 +17,14 @@ interface ElectronAPI {
     readScanFile: (filePath: string) => Promise<string>;
     cleanupScanFile: (filePath: string) => Promise<void>;
   };
+  updater: {
+    checkForUpdate: () => Promise<unknown>;
+    downloadUpdate: () => Promise<unknown>;
+    installUpdate: () => Promise<void>;
+    onUpdateAvailable: (cb: (info: unknown) => void) => () => void;
+    onUpdateProgress: (cb: (progress: unknown) => void) => () => void;
+    onUpdateDownloaded: (cb: () => void) => () => void;
+  };
 }
 
 declare global {

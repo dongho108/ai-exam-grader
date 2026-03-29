@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell, protocol, net, ipcMain } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import url from 'url';
 import { exec } from 'child_process';
@@ -244,7 +245,31 @@ app.whenReady().then(() => {
   console.log('[Scanner] 앱 시작: 임시 파일 정리');
   scannerService.cleanup();
 
+  // Auto-update IPC handlers
+  ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
+  ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
+  ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
+
   createWindow();
+
+  // Auto-updater (프로덕션 전용)
+  if (!isDev) {
+    autoUpdater.autoDownload = false;
+    autoUpdater.checkForUpdates();
+
+    autoUpdater.on('update-available', (info) => {
+      mainWindow?.webContents.send('update-available', info);
+    });
+    autoUpdater.on('download-progress', (progress) => {
+      mainWindow?.webContents.send('update-progress', progress);
+    });
+    autoUpdater.on('update-downloaded', () => {
+      mainWindow?.webContents.send('update-downloaded');
+    });
+    autoUpdater.on('error', (err) => {
+      console.error('[AutoUpdater] Error:', err);
+    });
+  }
 });
 
 app.on('before-quit', () => {

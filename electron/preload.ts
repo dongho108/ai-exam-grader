@@ -19,4 +19,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readScanFile: (filePath: string) => ipcRenderer.invoke('scanner:read-scan-file', filePath),
     cleanupScanFile: (filePath: string) => ipcRenderer.invoke('scanner:cleanup-scan-file', filePath),
   },
+  updater: {
+    checkForUpdate: () => ipcRenderer.invoke('update:check'),
+    downloadUpdate: () => ipcRenderer.invoke('update:download'),
+    installUpdate: () => ipcRenderer.invoke('update:install'),
+    onUpdateAvailable: (cb: (info: unknown) => void) => {
+      const handler = (_: unknown, info: unknown) => cb(info);
+      ipcRenderer.on('update-available', handler);
+      return () => { ipcRenderer.removeListener('update-available', handler); };
+    },
+    onUpdateProgress: (cb: (progress: unknown) => void) => {
+      const handler = (_: unknown, progress: unknown) => cb(progress);
+      ipcRenderer.on('update-progress', handler);
+      return () => { ipcRenderer.removeListener('update-progress', handler); };
+    },
+    onUpdateDownloaded: (cb: () => void) => {
+      const handler = () => cb();
+      ipcRenderer.on('update-downloaded', handler);
+      return () => { ipcRenderer.removeListener('update-downloaded', handler); };
+    },
+  },
 });
