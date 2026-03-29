@@ -57,6 +57,14 @@ export class ScannerService {
   }
 
   /**
+   * NAPS2 실행 시 사용할 환경변수를 반환한다.
+   * NAPS2_DATA를 설정하여 Program Files 내 Data 폴더 생성 문제를 회피한다.
+   */
+  private get naps2Env(): NodeJS.ProcessEnv {
+    return { ...process.env, NAPS2_DATA: this.naps2DataDir };
+  }
+
+  /**
    * NAPS2 Console 실행 파일 경로를 탐색한다.
    * Program Files 내에 있는지 검증하여 보안을 확보한다.
    */
@@ -138,10 +146,11 @@ export class ScannerService {
         return reject(new Error('NAPS2 not found'));
       }
 
-      const args = ['--listdevices', '--driver', 'twain', '--naps2data', this.naps2DataDir];
+      const args = ['--listdevices', '--driver', 'twain'];
       console.log('[Scanner] listDevices: 실행:', naps2Path, args.join(' '));
+      console.log('[Scanner] listDevices: NAPS2_DATA =', this.naps2DataDir);
 
-      execFile(naps2Path, args, { timeout: 10000 }, (error, stdout, stderr) => {
+      execFile(naps2Path, args, { timeout: 10000, env: this.naps2Env }, (error, stdout, stderr) => {
         if (error) {
           console.error('[Scanner] listDevices: 에러:', error.message);
           console.error('[Scanner] listDevices: stderr:', stderr);
@@ -220,7 +229,6 @@ export class ScannerService {
       '--bitdepth', colorMode,
       '--noprofile',
       '--force',
-      '--naps2data', this.naps2DataDir,
     ];
 
     if (options.device) {
@@ -237,7 +245,7 @@ export class ScannerService {
         this.currentProcess = execFile(
           naps2Path,
           args,
-          { timeout: 120000 },
+          { timeout: 120000, env: this.naps2Env },
           (error, stdout, stderr) => {
             this.currentProcess = null;
             console.log('[Scanner] scan: stdout:', JSON.stringify(stdout));

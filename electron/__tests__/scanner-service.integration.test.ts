@@ -130,7 +130,9 @@ describe('ScannerService - 통합 테스트', () => {
       expect(args[args.indexOf('--bitdepth') + 1]).toBe('gray');
       expect(args).toContain('--noprofile');
       expect(args).toContain('--force');
-      expect(args).toContain('--naps2data');
+      // NAPS2_DATA 환경변수로 데이터 디렉토리 지정
+      const envOpt = mockExecFile.mock.calls[0][2] as Record<string, unknown>;
+      expect((envOpt.env as Record<string, string>).NAPS2_DATA).toBe(path.join('/tmp/test-userdata', 'naps2-data'));
     });
 
     it('커스텀 옵션이 올바르게 전달된다', async () => {

@@ -154,7 +154,7 @@ describe('ScannerService - 단위 테스트', () => {
       expect(devices).toEqual([]);
     });
 
-    it('--naps2data 인자가 포함되어야 한다', async () => {
+    it('NAPS2_DATA 환경변수가 설정되어야 한다', async () => {
       vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
       const mockExecFile = vi.mocked(execFile);
       mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
@@ -165,8 +165,8 @@ describe('ScannerService - 단위 테스트', () => {
       await service.listDevices();
 
       const callArgs = mockExecFile.mock.calls[0][1] as string[];
-      expect(callArgs).toContain('--naps2data');
-      expect(callArgs).toContain(path.join('/tmp/test-userdata', 'naps2-data'));
+      const envOpt = mockExecFile.mock.calls[0][2] as Record<string, unknown>;
+      expect((envOpt.env as Record<string, string>).NAPS2_DATA).toBe(path.join('/tmp/test-userdata', 'naps2-data'));
     });
   });
 
@@ -210,7 +210,7 @@ describe('ScannerService - 단위 테스트', () => {
       await expect(service.scan({ format: 'gif' as any })).rejects.toThrow('Invalid format');
     });
 
-    it('scan CLI 인자에 --naps2data가 포함되어야 한다', async () => {
+    it('scan 실행 시 NAPS2_DATA 환경변수가 설정되어야 한다', async () => {
       vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
@@ -224,8 +224,8 @@ describe('ScannerService - 단위 테스트', () => {
       await service.scan({ format: 'jpeg' });
 
       const callArgs = mockExecFile.mock.calls[0][1] as string[];
-      expect(callArgs).toContain('--naps2data');
-      expect(callArgs).toContain(path.join('/tmp/test-userdata', 'naps2-data'));
+      const envOpt = mockExecFile.mock.calls[0][2] as Record<string, unknown>;
+      expect((envOpt.env as Record<string, string>).NAPS2_DATA).toBe(path.join('/tmp/test-userdata', 'naps2-data'));
     });
 
     it('device 옵션이 있으면 --device 인자를 추가한다', async () => {
