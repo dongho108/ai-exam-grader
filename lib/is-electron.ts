@@ -6,7 +6,7 @@ interface ElectronAPI {
   startAuthServer: () => Promise<number>;
   scanner: {
     checkAvailability: () => Promise<{ available: boolean; reason?: string; path?: string }>;
-    listDevices: () => Promise<{ devices: { name: string; driver: string }[]; error?: { type: string; message: string } }>;
+    listDevices: () => Promise<{ devices: { name: string; driver: string; driveLetter?: string; onTouchLitePath?: string; hasImageFiles?: boolean }[]; error?: { type: string; message: string } }>;
     scan: (options?: {
       device?: string;
       dpi?: number;
@@ -16,6 +16,9 @@ interface ElectronAPI {
     }) => Promise<{ filePath: string; mimeType: string }>;
     readScanFile: (filePath: string) => Promise<string>;
     cleanupScanFile: (filePath: string) => Promise<void>;
+    launchOnTouchLite: (exePath: string) => Promise<void>;
+    importFromFolder: () => Promise<{ files: Array<{ filePath: string; mimeType: string }> }>;
+    importFromDrive: (driveLetter: string) => Promise<{ files: Array<{ filePath: string; mimeType: string }> }>;
   };
   updater: {
     checkForUpdate: () => Promise<unknown>;
