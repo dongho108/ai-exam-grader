@@ -6,7 +6,7 @@ interface ElectronAPI {
   startAuthServer: () => Promise<number>;
   scanner: {
     checkAvailability: () => Promise<{ available: boolean; reason?: string; path?: string }>;
-    listDevices: () => Promise<{ name: string; driver: string }[]>;
+    listDevices: () => Promise<{ devices: { name: string; driver: string }[]; error?: { type: string; message: string } }>;
     scan: (options?: {
       device?: string;
       dpi?: number;
