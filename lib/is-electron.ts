@@ -3,6 +3,7 @@ interface ElectronAPI {
   platform: string;
   openExternal: (url: string) => Promise<void>;
   onAuthCallback: (callback: (code: string) => void) => () => void;
+  startAuthServer: () => Promise<number>;
   scanner: {
     checkAvailability: () => Promise<{ available: boolean; reason?: string; path?: string }>;
     listDevices: () => Promise<{ name: string; driver: string }[]>;

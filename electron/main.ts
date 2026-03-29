@@ -3,6 +3,7 @@ import path from 'path';
 import url from 'url';
 import { exec } from 'child_process';
 import { ScannerService } from './scanner-service';
+import { createAuthCallbackServer } from './auth-server';
 
 const scannerService = new ScannerService();
 
@@ -169,6 +170,19 @@ app.whenReady().then(() => {
   // IPC: renderer에서 시스템 브라우저 열기
   ipcMain.handle('open-external', (_event, url: string) => {
     return openInChrome(url);
+  });
+
+  // IPC: OAuth 콜백용 임시 localhost 서버 시작
+  ipcMain.handle('start-auth-server', async () => {
+    const { port } = await createAuthCallbackServer({
+      onCode: (code) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('auth-callback', code);
+          mainWindow.focus();
+        }
+      },
+    });
+    return port;
   });
 
   // Scanner IPC handlers

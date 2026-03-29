@@ -7,6 +7,7 @@ Object.defineProperty(window, 'electronAPI', {
     platform: 'darwin',
     openExternal: async () => {},
     onAuthCallback: () => () => {},
+    startAuthServer: async () => 0,
     scanner: {
       checkAvailability: async () => ({ available: false, reason: 'windows-only' as const }),
       listDevices: async () => [],

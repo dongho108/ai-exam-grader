@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('auth-callback', handler);
     };
   },
+  startAuthServer: () => ipcRenderer.invoke('start-auth-server'),
   scanner: {
     checkAvailability: () => ipcRenderer.invoke('scanner:check-availability'),
     listDevices: () => ipcRenderer.invoke('scanner:list-devices'),

@@ -66,10 +66,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   signInWithGoogle: async () => {
     try {
       const inElectron = isElectron();
-      // Electron: 딥링크로 리다이렉트, 웹: 기존 origin 사용
-      const redirectTo = inElectron
-        ? 'ai-exam-grader://auth/callback'
-        : `${window.location.origin}/auth/callback`;
+      // Electron: localhost 콜백 서버로 리다이렉트, 웹: 기존 origin 사용
+      let redirectTo: string;
+      if (inElectron && window.electronAPI?.startAuthServer) {
+        const port = await window.electronAPI.startAuthServer();
+        redirectTo = `http://localhost:${port}/auth/callback`;
+      } else {
+        redirectTo = `${window.location.origin}/auth/callback`;
+      }
 
       console.log('[Auth] Google Sign-In initiated');
       console.log('[Auth] Using redirect URL:', redirectTo);
