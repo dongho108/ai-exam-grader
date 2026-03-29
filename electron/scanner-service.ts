@@ -54,6 +54,7 @@ export class ScannerService {
   private isScanning = false;
   private currentProcess: ChildProcess | null = null;
   private lastSuccessfulDriver: 'twain' | 'wia' | null = null;
+  private lastDetectedDevice: string | null = null;
 
   private get tempDir(): string {
     return path.join(app.getPath('temp'), 'ai-exam-grader-scan');
@@ -297,6 +298,7 @@ export class ScannerService {
 
       if (primaryResult.devices.length > 0) {
         this.lastSuccessfulDriver = primaryDriver;
+        this.lastDetectedDevice = primaryResult.devices[0].name;
         allDevices.push(...primaryResult.devices);
       } else {
         console.log('[Scanner] listDevices:', primaryDriver, '결과 없음 →', secondaryDriver, 'fallback');
@@ -308,6 +310,7 @@ export class ScannerService {
 
         if (secondaryResult.devices.length > 0) {
           this.lastSuccessfulDriver = secondaryDriver;
+          this.lastDetectedDevice = secondaryResult.devices[0].name;
           allDevices.push(...secondaryResult.devices);
         } else {
           naps2Error = secondaryResult.error ?? primaryResult.error;
@@ -356,17 +359,20 @@ export class ScannerService {
         const drivePath = driveLetter + '\\';
         const volumeName = drive.VolumeName ?? '';
 
-        // Canon ONTOUCHL.exe 확인
-        const onTouchPath = path.join(drivePath, 'ONTOUCHL.exe');
-        if (fs.existsSync(onTouchPath)) {
+        // Canon OnTouch 실행 파일 확인 (Lite: ONTOUCHL.exe, 정식: ONTOUCH.exe)
+        const onTouchCandidates = ['ONTOUCHL.exe', 'ONTOUCH.exe'];
+        const foundOnTouch = onTouchCandidates
+          .map(name => path.join(drivePath, name))
+          .find(p => fs.existsSync(p));
+        if (foundOnTouch) {
           const modelName = this.extractCanonModel(volumeName, drivePath);
           devices.push({
             name: `${modelName} (USB)`,
             driver: 'usb-drive',
             driveLetter,
-            onTouchLitePath: onTouchPath,
+            onTouchLitePath: foundOnTouch,
           });
-          console.log('[Scanner] detectUsbScanners: Canon 감지:', driveLetter, modelName);
+          console.log('[Scanner] detectUsbScanners: Canon 감지:', driveLetter, modelName, path.basename(foundOnTouch));
           continue;
         }
 
@@ -422,14 +428,15 @@ export class ScannerService {
   }
 
   /**
-   * Canon Capture OnTouch Lite를 실행한다.
+   * Canon Capture OnTouch (Lite 또는 정식)를 실행한다.
    */
   launchOnTouchLite(exePath: string): void {
     const normalized = path.normalize(exePath);
 
-    // 보안: 이동식 드라이브 루트의 ONTOUCHL.exe만 허용
-    if (!normalized.endsWith('ONTOUCHL.exe') && !normalized.endsWith('ONTOUCHL.EXE')) {
-      throw new Error('Invalid OnTouch Lite path');
+    // 보안: 이동식 드라이브 루트의 ONTOUCHL.exe 또는 ONTOUCH.exe만 허용
+    const baseName = path.basename(normalized).toUpperCase();
+    if (baseName !== 'ONTOUCHL.EXE' && baseName !== 'ONTOUCH.EXE') {
+      throw new Error('Invalid OnTouch path');
     }
 
     if (!fs.existsSync(normalized)) {
@@ -503,6 +510,84 @@ export class ScannerService {
   /**
    * 스캔을 실행하고 임시 파일 경로를 반환한다.
    */
+  /**
+   * NAPS2 프로세스를 실행하여 스캔을 수행한다.
+   */
+  private execScanProcess(naps2Path: string, args: string[], tempPath: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      this.currentProcess = execFile(
+        naps2Path,
+        args,
+        { timeout: 120000, env: this.naps2Env },
+        (error, stdout, stderr) => {
+          this.currentProcess = null;
+          console.log('[Scanner] scan: stdout:', JSON.stringify(stdout));
+          console.log('[Scanner] scan: stderr:', JSON.stringify(stderr));
+
+          if (error) {
+            console.error('[Scanner] scan: 에러:', error.message);
+            console.error('[Scanner] scan: killed:', error.killed);
+            console.error('[Scanner] scan: code:', (error as NodeJS.ErrnoException).code);
+
+            const errorText = stderr || error.message;
+
+            // 권한 에러 감지
+            if (/UnauthorizedAccessException|Access.*denied/i.test(errorText)) {
+              return reject(new Error('스캐너 접근 권한이 없습니다. 앱을 재설치하거나 관리자 권한으로 실행해 주세요.'));
+            }
+
+            // 타임아웃으로 종료된 경우
+            if (error.killed) {
+              return reject(new Error('Scan timed out'));
+            }
+            return reject(new Error(`Scan failed: ${errorText}`));
+          }
+
+          // 출력 파일 존재 확인
+          const fileExists = fs.existsSync(tempPath);
+          console.log('[Scanner] scan: 출력 파일 존재:', fileExists, '경로:', tempPath);
+          if (!fileExists) {
+            return reject(new Error('Scan completed but output file not found'));
+          }
+
+          const fileSize = fs.statSync(tempPath).size;
+          console.log('[Scanner] scan: 출력 파일 크기:', fileSize, 'bytes');
+          resolve();
+        }
+      );
+      console.log('[Scanner] scan: 프로세스 시작됨, PID:', this.currentProcess?.pid);
+    });
+  }
+
+  /**
+   * 스캔 CLI 인자를 구성한다.
+   */
+  private buildScanArgs(
+    tempPath: string,
+    driver: string,
+    dpi: number,
+    source: string,
+    colorMode: string,
+    device?: string,
+  ): string[] {
+    const args = [
+      '-o', tempPath,
+      '--driver', driver,
+      '--dpi', String(dpi),
+      '--source', source,
+      '--bitdepth', colorMode,
+      '--noprofile',
+      '--force',
+    ];
+    if (device) {
+      args.push('--device', device);
+    }
+    return args;
+  }
+
+  /**
+   * 스캔을 실행하고 임시 파일 경로를 반환한다.
+   */
   async scan(options: ScanOptions = {}): Promise<ScanResult> {
     console.log('[Scanner] scan: 호출됨, 옵션:', JSON.stringify(options));
 
@@ -544,24 +629,37 @@ export class ScannerService {
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
 
-    const fileName = `${crypto.randomUUID()}.${format === 'jpeg' ? 'jpg' : format}`;
-    const tempPath = path.join(this.tempDir, fileName);
+    const ext = format === 'jpeg' ? 'jpg' : format;
+    const driver = options.driver ?? this.lastSuccessfulDriver ?? 'twain';
 
-    // CLI 인자 구성
-    const driver = options.driver ?? 'twain';
-    const args = [
-      '-o', tempPath,
-      '--driver', driver,
-      '--dpi', String(dpi),
-      '--source', source,
-      '--bitdepth', colorMode,
-      '--noprofile',
-      '--force',
-    ];
-
-    if (options.device) {
-      args.push('--device', options.device);
+    // 디바이스 미지정 시 캐시 또는 자동 감지
+    let device = options.device;
+    if (!device) {
+      if (this.lastDetectedDevice) {
+        device = this.lastDetectedDevice;
+        console.log('[Scanner] scan: 캐시된 디바이스 사용:', device);
+      } else {
+        console.log('[Scanner] scan: 디바이스 미지정 → 자동 감지 시도');
+        const detected = await this.listDevicesByDriver(driver);
+        if (detected.devices.length > 0) {
+          device = detected.devices[0].name;
+          this.lastDetectedDevice = device;
+          console.log('[Scanner] scan: 자동 감지 디바이스:', device);
+        } else {
+          const altDriver = driver === 'twain' ? 'wia' : 'twain';
+          const altDetected = await this.listDevicesByDriver(altDriver);
+          if (altDetected.devices.length > 0) {
+            device = altDetected.devices[0].name;
+            this.lastDetectedDevice = device;
+            console.log('[Scanner] scan: 대체 드라이버로 감지된 디바이스:', device);
+          }
+        }
+      }
     }
+
+    const fileName = `${crypto.randomUUID()}.${ext}`;
+    const tempPath = path.join(this.tempDir, fileName);
+    const args = this.buildScanArgs(tempPath, driver, dpi, source, colorMode, device);
 
     console.log('[Scanner] scan: 실행 명령:', naps2Path);
     console.log('[Scanner] scan: CLI 인자:', args.join(' '));
@@ -569,50 +667,36 @@ export class ScannerService {
     this.isScanning = true;
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        this.currentProcess = execFile(
-          naps2Path,
-          args,
-          { timeout: 120000, env: this.naps2Env },
-          (error, stdout, stderr) => {
-            this.currentProcess = null;
-            console.log('[Scanner] scan: stdout:', JSON.stringify(stdout));
-            console.log('[Scanner] scan: stderr:', JSON.stringify(stderr));
+      try {
+        await this.execScanProcess(naps2Path, args, tempPath);
+      } catch (firstError) {
+        // 드라이버가 명시된 경우 fallback하지 않음
+        if (options.driver != null) throw firstError;
 
-            if (error) {
-              console.error('[Scanner] scan: 에러:', error.message);
-              console.error('[Scanner] scan: killed:', error.killed);
-              console.error('[Scanner] scan: code:', (error as NodeJS.ErrnoException).code);
+        const errMsg = (firstError as Error).message;
+        // 권한 에러 또는 타임아웃은 fallback하지 않음
+        if (/권한|UnauthorizedAccessException|Access.*denied/i.test(errMsg)) throw firstError;
+        if (/timed out/i.test(errMsg)) throw firstError;
 
-              const errorText = stderr || error.message;
+        // 대체 드라이버로 재시도
+        const altDriver = driver === 'twain' ? 'wia' : 'twain';
+        console.log('[Scanner] scan: fallback →', altDriver);
 
-              // 권한 에러 감지
-              if (/UnauthorizedAccessException|Access.*denied/i.test(errorText)) {
-                return reject(new Error('스캐너 접근 권한이 없습니다. 앱을 재설치하거나 관리자 권한으로 실행해 주세요.'));
-              }
+        const altFileName = `${crypto.randomUUID()}.${ext}`;
+        const altTempPath = path.join(this.tempDir, altFileName);
+        const altArgs = this.buildScanArgs(altTempPath, altDriver, dpi, source, colorMode, options.device);
 
-              // 타임아웃으로 종료된 경우
-              if (error.killed) {
-                return reject(new Error('Scan timed out'));
-              }
-              return reject(new Error(`Scan failed: ${errorText}`));
-            }
+        await this.execScanProcess(naps2Path, altArgs, altTempPath);
+        this.lastSuccessfulDriver = altDriver;
 
-            // 출력 파일 존재 확인
-            const fileExists = fs.existsSync(tempPath);
-            console.log('[Scanner] scan: 출력 파일 존재:', fileExists, '경로:', tempPath);
-            if (!fileExists) {
-              return reject(new Error('Scan completed but output file not found'));
-            }
+        console.log('[Scanner] scan: 성공! (fallback) 파일:', altTempPath);
+        return {
+          filePath: altTempPath,
+          mimeType: FORMAT_TO_MIME[format] || 'application/octet-stream',
+        };
+      }
 
-            const fileSize = fs.statSync(tempPath).size;
-            console.log('[Scanner] scan: 출력 파일 크기:', fileSize, 'bytes');
-            resolve();
-          }
-        );
-        console.log('[Scanner] scan: 프로세스 시작됨, PID:', this.currentProcess?.pid);
-      });
-
+      this.lastSuccessfulDriver = driver;
       console.log('[Scanner] scan: 성공! 파일:', tempPath);
       return {
         filePath: tempPath,

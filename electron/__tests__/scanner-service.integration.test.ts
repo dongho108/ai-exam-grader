@@ -223,7 +223,12 @@ describe('ScannerService - 통합 테스트', () => {
 
       await service.scan();
 
-      const args = mockExecFile.mock.calls[0][1] as string[];
+      // listdevices 호출이 아닌 실제 scan 호출을 ��기
+      const scanCall = mockExecFile.mock.calls.find(
+        call => !(call[1] as string[]).includes('--listdevices')
+      );
+      expect(scanCall).toBeDefined();
+      const args = scanCall![1] as string[];
       // 기본값 검증
       expect(args).toContain('--driver');
       expect(args[args.indexOf('--driver') + 1]).toBe('twain');
@@ -236,7 +241,7 @@ describe('ScannerService - 통합 테스트', () => {
       expect(args).toContain('--noprofile');
       expect(args).toContain('--force');
       // NAPS2_DATA 환경변수로 데이터 디렉토리 지정
-      const envOpt = mockExecFile.mock.calls[0][2] as Record<string, unknown>;
+      const envOpt = scanCall![2] as Record<string, unknown>;
       expect((envOpt.env as Record<string, string>).NAPS2_DATA).toBe(path.join('/tmp/test-userdata', 'naps2-data'));
     });
 

@@ -15,38 +15,98 @@ interface PendingFile {
 
 export function AnswerKeyManagement() {
   const { answerKeys, addAnswerKey, removeAnswerKey } = useScanStore()
-  const { available, isElectron } = useScannerAvailability()
+  const { available, isElectron, devices } = useScannerAvailability()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [previewKeyId, setPreviewKeyId] = useState<string | null>(null)
 
+  // USB 드라이브 스캐너 여부 판별
+  const usbDevice = devices.find(d => d.driver === 'usb-drive')
+  const hasNaps2Device = devices.some(d => d.driver === 'twain' || d.driver === 'wia')
+
+  const processScannedFile = async (filePath: string, mimeType: string) => {
+    const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
+
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    const blob = new Blob([bytes], { type: mimeType })
+    const file = new File([blob], `scan-${Date.now()}.${mimeType.split('/')[1] || 'pdf'}`, { type: mimeType })
+
+    const structure = await extractAnswerStructure(file)
+
+    addAnswerKey({
+      id: uuidv4(),
+      title: structure.title || '스캔된 정답지',
+      file,
+      structure,
+      createdAt: Date.now(),
+    })
+
+    await window.electronAPI!.scanner.cleanupScanFile(filePath)
+  }
+
+  const handleUsbScan = async () => {
+    if (!usbDevice) return
+
+    // Canon OnTouch Lite 방식: 폴더에서 가져오기
+    if (usbDevice.onTouchLitePath) {
+      window.electronAPI!.scanner.launchOnTouchLite(usbDevice.onTouchLitePath)
+      // OnTouch Lite 실행 후 폴더 선택 다이얼로그로 이미지 가져오기
+      window.alert('Capture OnTouch Lite가 실행됩니다.\n스캔 완료 후 "확인"을 눌러 저장된 이미지를 가져오세요.')
+    }
+
+    const pendingId = uuidv4()
+    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: 'USB 스캐너에서 가져오는 중...' }])
+
+    try {
+      let result: { files: Array<{ filePath: string; mimeType: string }> }
+
+      if (usbDevice.hasImageFiles && usbDevice.driveLetter) {
+        // USB 드라이브에 이미지가 이미 있으면 직접 가져오기
+        result = await window.electronAPI!.scanner.importFromDrive(usbDevice.driveLetter)
+      } else {
+        // 폴더 선택 다이얼로그
+        result = await window.electronAPI!.scanner.importFromFolder()
+      }
+
+      if (!result.files || result.files.length === 0) {
+        window.alert('가져올 이미지 파일이 없습니다.')
+        return
+      }
+
+      // 첫 번째 파일을 정답지로 처리
+      await processScannedFile(result.files[0].filePath, result.files[0].mimeType)
+
+      // 나머지 파일 정리
+      for (let i = 1; i < result.files.length; i++) {
+        await window.electronAPI!.scanner.cleanupScanFile(result.files[i].filePath)
+      }
+    } catch (err) {
+      console.error('[AnswerKeyManagement] USB scan failed:', err)
+      window.alert('USB 스캐너에서 이미지를 가져오는 데 실패했습니다.')
+    } finally {
+      setPendingFiles((prev) => prev.filter((p) => p.id !== pendingId))
+    }
+  }
+
   const handleScannerScan = async () => {
+    console.log('[AnswerKeyManagement] devices:', JSON.stringify(devices))
+    console.log('[AnswerKeyManagement] hasNaps2Device:', hasNaps2Device, 'usbDevice:', usbDevice)
+
+    // USB 드라이브 스캐너는 별도 플로우 사용
+    if (!hasNaps2Device && usbDevice) {
+      return handleUsbScan()
+    }
+
     const pendingId = uuidv4()
     setPendingFiles((prev) => [...prev, { id: pendingId, fileName: '스캐너 스캔 중...' }])
 
     try {
       const { filePath, mimeType } = await window.electronAPI!.scanner.scan()
-      const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
-
-      const binary = atob(base64)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i)
-      }
-      const blob = new Blob([bytes], { type: mimeType })
-      const file = new File([blob], `scan-${Date.now()}.pdf`, { type: mimeType })
-
-      const structure = await extractAnswerStructure(file)
-
-      addAnswerKey({
-        id: uuidv4(),
-        title: structure.title || '스캔된 정답지',
-        file,
-        structure,
-        createdAt: Date.now(),
-      })
-
-      await window.electronAPI!.scanner.cleanupScanFile(filePath)
+      await processScannedFile(filePath, mimeType)
     } catch (err) {
       console.error('[AnswerKeyManagement] Scanner scan failed:', err)
       const message = err instanceof Error ? err.message : String(err)

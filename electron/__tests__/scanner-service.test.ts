@@ -411,6 +411,216 @@ describe('ScannerService - 단위 테스트', () => {
       expect(callArgs[callArgs.indexOf('--driver') + 1]).toBe('twain');
     });
 
+    it('driver 미지정 시 lastSuccessfulDriver를 사용한다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      vi.spyOn(fs, 'statSync').mockReturnValue({ size: 1024 } as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      // listDevices에서 WIA로 성공시켜 lastSuccessfulDriver를 wia로 설정
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        if (args.includes('--listdevices')) {
+          if (args.includes('twain')) {
+            (callback as Function)(null, '', '');
+          } else {
+            (callback as Function)(null, 'WIA Scanner\n', '');
+          }
+        } else {
+          (callback as Function)(null, '', '');
+        }
+        return {} as any;
+      });
+      await service.listDevices();
+
+      // scan 호출 시 wia를 사용해야 함
+      mockExecFile.mockClear();
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        (callback as Function)(null, '', '');
+        return {} as any;
+      });
+
+      await service.scan({ format: 'jpeg' });
+
+      const callArgs = mockExecFile.mock.calls[0][1] as string[];
+      expect(callArgs[callArgs.indexOf('--driver') + 1]).toBe('wia');
+    });
+
+    it('driver 미지정 + 첫 드라이버 실패 시 대체 드라이버로 재시도한다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      vi.spyOn(fs, 'statSync').mockReturnValue({ size: 1024 } as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      let scanCallCount = 0;
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        // listdevices 호출은 디바이스 반환
+        if (args.includes('--listdevices')) {
+          (callback as Function)(null, 'Test Scanner\n', '');
+          return {} as any;
+        }
+        scanCallCount++;
+        const driverIdx = args.indexOf('--driver');
+        const driver = driverIdx >= 0 ? args[driverIdx + 1] : '';
+        if (driver === 'twain') {
+          (callback as Function)(new Error('TWAIN driver error'), '', 'TWAIN init failed');
+        } else {
+          (callback as Function)(null, '', '');
+        }
+        return {} as any;
+      });
+
+      const result = await service.scan({ format: 'jpeg' });
+
+      expect(result).toHaveProperty('filePath');
+      expect(result).toHaveProperty('mimeType');
+      expect(scanCallCount).toBe(2); // TWAIN 실패 + WIA 재시도
+    });
+
+    it('driver 명시 시 fallback하지 않는다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        if (args.includes('--listdevices')) {
+          (callback as Function)(null, 'Test Scanner\n', '');
+          return {} as any;
+        }
+        (callback as Function)(new Error('TWAIN error'), '', 'TWAIN init failed');
+        return {} as any;
+      });
+
+      await expect(service.scan({ driver: 'twain', format: 'jpeg' })).rejects.toThrow();
+      // listdevices 1회 + scan 1회 = 2회 (scan fallback 없음)
+      const scanCalls = mockExecFile.mock.calls.filter(
+        call => !(call[1] as string[]).includes('--listdevices')
+      );
+      expect(scanCalls).toHaveLength(1);
+    });
+
+    it('권한 에러 시 fallback하지 않는다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        if (args.includes('--listdevices')) {
+          (callback as Function)(null, 'Test Scanner\n', '');
+          return {} as any;
+        }
+        (callback as Function)(new Error('scan error'), '', 'UnauthorizedAccessException: Access denied');
+        return {} as any;
+      });
+
+      await expect(service.scan({ format: 'jpeg' })).rejects.toThrow('스캐너 접근 권한이 없습니다');
+      const scanCalls = mockExecFile.mock.calls.filter(
+        call => !(call[1] as string[]).includes('--listdevices')
+      );
+      expect(scanCalls).toHaveLength(1);
+    });
+
+    it('타임아웃 시 fallback하지 않는다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        if (args.includes('--listdevices')) {
+          (callback as Function)(null, 'Test Scanner\n', '');
+          return {} as any;
+        }
+        const err = new Error('killed') as any;
+        err.killed = true;
+        (callback as Function)(err, '', '');
+        return {} as any;
+      });
+
+      await expect(service.scan({ format: 'jpeg' })).rejects.toThrow('timed out');
+      const scanCalls = mockExecFile.mock.calls.filter(
+        call => !(call[1] as string[]).includes('--listdevices')
+      );
+      expect(scanCalls).toHaveLength(1);
+    });
+
+    it('listDevices 후 scan 시 캐시된 디바이스명을 --device로 전달한다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      vi.spyOn(fs, 'statSync').mockReturnValue({ size: 1024 } as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      // listDevices에서 WIA로 디바이스 발견
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        if (args.includes('--listdevices')) {
+          if (args.includes('twain')) {
+            (callback as Function)(null, '', '');
+          } else {
+            (callback as Function)(null, 'Cached WIA Scanner\n', '');
+          }
+        } else {
+          (callback as Function)(null, '', '');
+        }
+        return {} as any;
+      });
+      await service.listDevices();
+
+      // scan 시 캐시된 디바이스명이 전달되어야 함
+      mockExecFile.mockClear();
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        (callback as Function)(null, '', '');
+        return {} as any;
+      });
+
+      await service.scan({ format: 'jpeg' });
+
+      // listdevices 재호출 없이 바로 scan (캐시 사용)
+      const scanCall = mockExecFile.mock.calls.find(
+        call => !(call[1] as string[]).includes('--listdevices')
+      );
+      const scanArgs = scanCall![1] as string[];
+      expect(scanArgs).toContain('--device');
+      expect(scanArgs[scanArgs.indexOf('--device') + 1]).toBe('Cached WIA Scanner');
+    });
+
+    it('device 미지정 시 자동으로 첫 번째 디바이스를 감지하여 --device 인자를 추가한다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+      vi.spyOn(fs, 'statSync').mockReturnValue({ size: 1024 } as any);
+      const mockExecFile = vi.mocked(execFile);
+
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        const args = _args as string[];
+        if (args.includes('--listdevices')) {
+          (callback as Function)(null, 'Auto Detected Scanner\n', '');
+        } else {
+          (callback as Function)(null, '', '');
+        }
+        return {} as any;
+      });
+
+      await service.scan({ format: 'jpeg' });
+
+      // scan 호출 (listdevices가 아닌) 에서 --device 인자 확인
+      const scanCall = mockExecFile.mock.calls.find(
+        call => !(call[1] as string[]).includes('--listdevices')
+      );
+      const scanArgs = scanCall![1] as string[];
+      expect(scanArgs).toContain('--device');
+      expect(scanArgs[scanArgs.indexOf('--device') + 1]).toBe('Auto Detected Scanner');
+    });
+
     it('scan() 중 권한 에러 시 사용자 안내 메시지를 포함한다', async () => {
       vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
@@ -624,6 +834,27 @@ describe('ScannerService - 단위 테스트', () => {
       expect(devices[0].onTouchLitePath).toContain('ONTOUCHL.exe');
     });
 
+    it('Canon ONTOUCH.exe(정식 버전)가 있는 이동식 드라이브를 감지한다', async () => {
+      vi.mocked(execFileSync).mockReturnValue(JSON.stringify({
+        DeviceID: 'F:',
+        VolumeName: 'CAPTUREOT',
+      }));
+      vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
+        const s = String(p);
+        if (s.includes('ONTOUCHL.exe')) return false; // Lite는 없음
+        if (s.includes('ONTOUCH.exe')) return true;   // 정식 버전
+        return false;
+      });
+
+      const devices = await service.detectUsbScanners();
+
+      expect(devices).toHaveLength(1);
+      expect(devices[0].driver).toBe('usb-drive');
+      expect(devices[0].name).toContain('Canon');
+      expect(devices[0].driveLetter).toBe('F:');
+      expect(devices[0].onTouchLitePath).toContain('ONTOUCH.exe');
+    });
+
     it('이미지 파일이 있는 이동식 드라이브를 감지한다', async () => {
       vi.mocked(execFileSync).mockReturnValue(JSON.stringify({
         DeviceID: 'F:',
@@ -685,7 +916,7 @@ describe('ScannerService - 단위 테스트', () => {
 
   describe('launchOnTouchLite()', () => {
     it('유효하지 않은 경로면 에러를 throw한다', () => {
-      expect(() => service.launchOnTouchLite('/some/malicious.exe')).toThrow('Invalid OnTouch Lite path');
+      expect(() => service.launchOnTouchLite('/some/malicious.exe')).toThrow('Invalid OnTouch path');
     });
 
     it('ONTOUCHL.exe가 존재하지 않으면 에러를 throw한다', () => {
