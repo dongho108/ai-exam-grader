@@ -21,6 +21,38 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      - name: Cache NAPS2
+        uses: actions/cache@v4
+        with:
+          path: resources/naps2
+          key: naps2-${{ hashFiles('scripts/download-naps2.mjs') }}
+
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/electron/Cache
+          key: electron-bin-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-bin-${{ runner.os }}-
+
+      - name: Cache electron-builder
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/electron-builder/Cache
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-builder-${{ runner.os }}-
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'features/**') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            nextjs-${{ runner.os }}-
+
       - name: Generate version and tag
         id: tag
         shell: bash
@@ -50,7 +82,19 @@ jobs:
       - name: Set version in package.json
         shell: bash
         run: npm version ${{ steps.tag.outputs.semver }} --no-git-tag-version --allow-same-version
-      - run: npm run naps2:download
+      - name: Download NAPS2 & Build (parallel)
+        shell: bash
+        run: |
+          npm run naps2:download &
+          NAPS2_PID=$!
+          npx next build
+          npm run electron:compile
+          wait $NAPS2_PID
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.tag.outputs.tag }}
       - name: Create git tag
         shell: bash
         run: |
@@ -59,11 +103,8 @@ jobs:
           git tag "v${{ steps.tag.outputs.semver }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and publish
-        run: npx next build && npm run electron:compile && npx electron-builder --win --publish always
+      - name: Package and publish
         shell: bash
+        run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_APP_VERSION: ${{ steps.tag.outputs.tag }}
