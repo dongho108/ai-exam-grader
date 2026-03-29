@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { execFile, execFileSync, ChildProcess } from 'child_process';
+import { execFile, execFileSync, spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -444,7 +444,7 @@ export class ScannerService {
     }
 
     console.log('[Scanner] launchOnTouchLite:', normalized);
-    const child = execFile(normalized, [] as string[], { detached: true, cwd: path.dirname(normalized) });
+    const child = spawn(normalized, [], { detached: true, stdio: 'ignore', cwd: path.dirname(normalized) });
     child.unref();
   }
 
