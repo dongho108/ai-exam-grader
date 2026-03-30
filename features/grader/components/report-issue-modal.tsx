@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { StudentSubmission } from '@/types/grading';
 import { AnswerKeyStructure } from '@/types/grading';
 import { submitGradingReport } from '@/lib/report-service';
+import { uploadAnswerKey } from '@/lib/storage-service';
 
 interface ReportIssueModalProps {
   submission: StudentSubmission;
@@ -13,6 +14,7 @@ interface ReportIssueModalProps {
   userId: string;
   answerKeyStructure: AnswerKeyStructure;
   answerKeyStoragePath: string;
+  answerKeyFile?: File;
   onClose: () => void;
 }
 
@@ -22,6 +24,7 @@ export function ReportIssueModal({
   userId,
   answerKeyStructure,
   answerKeyStoragePath,
+  answerKeyFile,
   onClose,
 }: ReportIssueModalProps) {
   const [comment, setComment] = useState('');
@@ -42,6 +45,15 @@ export function ReportIssueModal({
     setError(null);
 
     try {
+      let resolvedStoragePath = answerKeyStoragePath;
+      if (!resolvedStoragePath && answerKeyFile) {
+        try {
+          resolvedStoragePath = await uploadAnswerKey(userId, sessionId, answerKeyFile);
+        } catch {
+          resolvedStoragePath = '';
+        }
+      }
+
       await submitGradingReport({
         userId,
         sessionId,
@@ -50,7 +62,7 @@ export function ReportIssueModal({
         score: submission.score,
         resultsSnapshot: submission.results,
         answerKeyStructure,
-        answerKeyStoragePath,
+        answerKeyStoragePath: resolvedStoragePath,
         submissionStoragePath: submission.storagePath || '',
         comment: comment.trim() || undefined,
       });

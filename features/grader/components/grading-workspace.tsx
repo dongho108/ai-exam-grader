@@ -412,15 +412,16 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
       {showReportModal && currentSubmission && user && (() => {
         const currentTab = useTabStore.getState().tabs.find(t => t.id === tabId);
         const answerKeyStructure = currentTab?.answerKeyStructure;
+        if (!answerKeyStructure) return null;
         const answerKeyStoragePath = currentTab?.answerKeyFile?.storagePath;
-        if (!answerKeyStructure || !answerKeyStoragePath) return null;
         return (
           <ReportIssueModal
             submission={currentSubmission}
             sessionId={tabId}
             userId={user.id}
             answerKeyStructure={answerKeyStructure}
-            answerKeyStoragePath={answerKeyStoragePath}
+            answerKeyStoragePath={answerKeyStoragePath ?? ''}
+            answerKeyFile={answerKeyFile}
             onClose={() => setShowReportModal(false)}
           />
         );
