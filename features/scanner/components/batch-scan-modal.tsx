@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, X, Upload, FileText, Usb, FolderOpen, ExternalLink } from "lucide-react"
+import { AlertCircle, X, Upload, FileText, ScanLine, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useScanStore } from "@/store/use-scan-store"
 import { useBatchScan } from "../hooks/use-batch-scan"
 import { useScannerAvailability } from "../hooks/use-scanner-availability"
-import type { ScanOptions, ScannerDevice } from "@/types"
+import { extractAnswerStructure } from "@/lib/grading-service"
+import { base64ToFile } from "@/lib/scan-utils"
+import { v4 as uuidv4 } from "uuid"
 
 interface BatchScanModalProps {
   open: boolean
@@ -14,77 +16,145 @@ interface BatchScanModalProps {
   onScanComplete: () => void
 }
 
-type Source = "feeder" | "glass" | "duplex"
-type Dpi = 150 | 200 | 300 | 600
-type ColorMode = "bw" | "gray" | "color"
 type PageMode = "auto" | "fixed"
+type ScanStatus = null | 'scanning' | 'reading' | 'analyzing' | 'uploading'
 
 export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModalProps) {
-  const { answerKeys } = useScanStore()
-  const { isScanning, pageCount, lastError, startScan, stopScan, addFiles, importFromFolder, importFromDrive, isDevMode } = useBatchScan()
-  const { devices } = useScannerAvailability()
+  const { answerKeys, addAnswerKey, removeAnswerKey } = useScanStore()
+  const { pageCount, addFiles, isDevMode } = useBatchScan()
+  const { available } = useScannerAvailability()
 
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
-  const [selectedDevice, setSelectedDevice] = useState<ScannerDevice | null>(null)
-  const [source, setSource] = useState<Source>("feeder")
-  const [dpi, setDpi] = useState<Dpi>(300)
-  const [colorMode, setColorMode] = useState<ColorMode>("bw")
   const [pageMode, setPageMode] = useState<PageMode>("auto")
   const [fixedPageCount, setFixedPageCount] = useState(2)
-  const [onTouchLaunched, setOnTouchLaunched] = useState(false)
-  const [isImporting, setIsImporting] = useState(false)
 
-  const usbDevices = devices.filter(d => d.driver === 'usb-drive')
-  const isUsbMode = selectedDevice?.driver === 'usb-drive'
+  const [answerKeyStatus, setAnswerKeyStatus] = useState<ScanStatus>(null)
+  const [examScanStatus, setExamScanStatus] = useState<ScanStatus>(null)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const wasScanningRef = useRef(false)
+  const answerKeyInputRef = useRef<HTMLInputElement>(null)
+  const examInputRef = useRef<HTMLInputElement>(null)
 
+  // Auto-select when only one answer key exists
   useEffect(() => {
-    if (wasScanningRef.current && !isScanning && pageCount > 0) {
-      onScanComplete()
+    if (answerKeys.length === 1 && !selectedKeyId) {
+      setSelectedKeyId(answerKeys[0].id)
     }
-    wasScanningRef.current = isScanning
-  }, [isScanning, pageCount, onScanComplete])
+  }, [answerKeys, selectedKeyId])
 
   if (!open) return null
 
-  function handleStartScan() {
-    const scanOptions: ScanOptions = {
-      source,
-      dpi,
-      colorMode,
+  // ── 정답지 핸들러 ──
+
+  async function handleAnswerKeyUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAnswerKeyStatus('uploading')
+    try {
+      setAnswerKeyStatus('analyzing')
+      const structure = await extractAnswerStructure(file)
+      const newKey = {
+        id: uuidv4(),
+        title: structure.title || file.name,
+        file,
+        structure,
+        createdAt: Date.now(),
+      }
+      addAnswerKey(newKey)
+      setSelectedKeyId(newKey.id)
+    } catch (err) {
+      console.error('[BatchScanModal] Failed to process answer key:', err)
+    } finally {
+      setAnswerKeyStatus(null)
     }
-    startScan({ scanOptions })
+    if (answerKeyInputRef.current) answerKeyInputRef.current.value = ''
   }
 
-  function handleDevFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAnswerKeyScan() {
+    setAnswerKeyStatus('scanning')
+    try {
+      const { filePath, mimeType } = await window.electronAPI!.scanner.scan()
+
+      setAnswerKeyStatus('reading')
+      const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
+      const file = base64ToFile(base64, `answer-key-${Date.now()}.${mimeType.split('/')[1] || 'pdf'}`, mimeType)
+
+      setAnswerKeyStatus('analyzing')
+      const structure = await extractAnswerStructure(file)
+      const newKey = {
+        id: uuidv4(),
+        title: structure.title || '스캔된 정답지',
+        file,
+        structure,
+        createdAt: Date.now(),
+      }
+      addAnswerKey(newKey)
+      setSelectedKeyId(newKey.id)
+      await window.electronAPI!.scanner.cleanupScanFile(filePath)
+    } catch (err) {
+      console.error('[BatchScanModal] Answer key scan failed:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.includes('output file not found') || message.includes('No pages')) {
+        window.alert('스캐너에 문서가 감지되지 않았습니다.')
+      } else {
+        window.alert('정답지 스캔에 실패했습니다.')
+      }
+    } finally {
+      setAnswerKeyStatus(null)
+    }
+  }
+
+  // ── 시험지(답안지) 핸들러 ──
+
+  async function handleExamScan() {
+    setExamScanStatus('scanning')
+    try {
+      const { filePath, mimeType } = await window.electronAPI!.scanner.scan()
+
+      setExamScanStatus('reading')
+      const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
+      const ext = mimeType.split('/')[1] ?? 'jpeg'
+      const file = base64ToFile(base64, `scan-${pageCount}.${ext}`, mimeType)
+      addFiles([file])
+      await window.electronAPI!.scanner.cleanupScanFile(filePath)
+    } catch (err) {
+      console.error('[BatchScanModal] Exam scan failed:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.includes('output file not found') || message.includes('No pages')) {
+        window.alert('스캐너에 문서가 감지되지 않았습니다.')
+      } else {
+        window.alert('시험지 스캔에 실패했습니다.')
+      }
+    } finally {
+      setExamScanStatus(null)
+    }
+  }
+
+  function handleExamUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files || files.length === 0) return
     addFiles(Array.from(files))
-    // Reset input
-    if (fileInputRef.current) fileInputRef.current.value = ""
+    if (examInputRef.current) examInputRef.current.value = ""
   }
 
+  const isBusy = !!answerKeyStatus || !!examScanStatus
+  const step1Done = answerKeys.length > 0 && !!selectedKeyId
+  const step2Done = pageCount > 0
+  const canStart = step1Done && step2Done
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isScanning) onClose()
-      }}
-    >
-      <div className="relative w-full max-w-lg rounded-xl bg-white shadow-2xl">
+    <div className="w-full max-w-lg mx-auto">
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">배치 스캔</h2>
+            <h2 className="text-lg font-semibold text-gray-900">스캔 채점</h2>
             {isDevMode && (
               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                 DEV
               </span>
             )}
           </div>
-          {!isScanning && (
+          {!isBusy && (
             <button
               onClick={onClose}
               className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -95,13 +165,65 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
         </div>
 
         {/* Body */}
-        <div className="max-h-[70vh] overflow-y-auto px-6 py-5 space-y-6">
-          {/* 1. 정답지 선택 */}
+        <div className="px-6 py-5 space-y-6">
+
+          {/* ❶ 정답지 섹션 */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">정답지 선택</h3>
-            {answerKeys.length === 0 ? (
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                {step1Done ? (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">✓</span>
+                ) : (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">1</span>
+                )}
+                정답지
+              </h3>
+              <div className="flex gap-1.5">
+                {!isDevMode && available && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={handleAnswerKeyScan}
+                    disabled={isBusy}
+                  >
+                    <ScanLine className="mr-1 h-3.5 w-3.5" />
+                    스캔
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  onClick={() => answerKeyInputRef.current?.click()}
+                  disabled={isBusy}
+                >
+                  <Upload className="mr-1 h-3.5 w-3.5" />
+                  업로드
+                </Button>
+                <input
+                  ref={answerKeyInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  onChange={handleAnswerKeyUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+            {answerKeyStatus && (
+              <div className="flex items-center gap-2 rounded-md bg-blue-50 px-4 py-2.5 text-sm text-blue-700 mb-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>
+                  {answerKeyStatus === 'scanning' && '스캐너에서 스캔 중...'}
+                  {answerKeyStatus === 'reading' && '스캔 파일 읽는 중...'}
+                  {answerKeyStatus === 'uploading' && '파일 읽는 중...'}
+                  {answerKeyStatus === 'analyzing' && '정답지 분석 중...'}
+                </span>
+              </div>
+            )}
+            {answerKeys.length === 0 && !answerKeyStatus ? (
               <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500">
-                등록된 정답지가 없습니다. 먼저 정답지를 등록해 주세요.
+                스캐너에 정답지를 올려두고 스캔 버튼을 누르세요.
               </p>
             ) : (
               <div className="space-y-2">
@@ -128,230 +250,91 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
                         {key.structure?.totalQuestions ?? 0}문항
                       </p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        removeAnswerKey(key.id)
+                        if (selectedKeyId === key.id) setSelectedKeyId(null)
+                      }}
+                      className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                      aria-label="삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </label>
                 ))}
               </div>
             )}
           </section>
 
-          {/* 디바이스 선택 (USB 디바이스가 있을 때) */}
-          {!isDevMode && usbDevices.length > 0 && (
-            <section>
-              <h3 className="mb-3 text-sm font-semibold text-gray-700">스캐너 선택</h3>
-              <div className="space-y-2">
-                {/* TWAIN/WIA 옵션 */}
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
-                    !isUsbMode ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="deviceType"
-                    checked={!isUsbMode}
-                    onChange={() => setSelectedDevice(null)}
-                    className="h-4 w-4 accent-blue-600"
-                  />
-                  <span className="text-sm text-gray-900">TWAIN/WIA 스캐너</span>
-                </label>
-                {/* USB 디바이스들 */}
-                {usbDevices.map((d, i) => (
-                  <label
-                    key={`usb-${i}`}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
-                      selectedDevice === d ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="deviceType"
-                      checked={selectedDevice === d}
-                      onChange={() => { setSelectedDevice(d); setOnTouchLaunched(false) }}
-                      className="h-4 w-4 accent-blue-600"
-                    />
-                    <Usb className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-900">{d.name}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {isDevMode ? (
-            /* Dev 모드: 파일 업로드로 스캔 대체 */
-            <section>
-              <h3 className="mb-3 text-sm font-semibold text-gray-700">
-                답안지 파일 업로드
-                <span className="ml-2 text-xs font-normal text-gray-400">(스캔 대체)</span>
+          {/* ❷ 학생 답안지 섹션 */}
+          <section className={!step1Done ? "opacity-50 pointer-events-none" : ""}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                {step2Done ? (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">✓</span>
+                ) : (
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white ${step1Done ? "bg-primary" : "bg-gray-300"}`}>2</span>
+                )}
+                학생 답안지
               </h3>
-              <div
-                className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 px-6 py-8 transition-colors hover:border-blue-400 hover:bg-blue-50/30 cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-8 w-8 text-gray-400" />
-                <p className="text-sm text-gray-600">
-                  클릭하여 PDF/이미지 파일을 선택하세요
-                </p>
-                <p className="text-xs text-gray-400">
-                  여러 파일을 한번에 선택할 수 있습니다
-                </p>
+              <div className="flex gap-1.5">
+                {!isDevMode && available && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={handleExamScan}
+                    disabled={isBusy || !step1Done}
+                  >
+                    <ScanLine className="mr-1 h-3.5 w-3.5" />
+                    스캔
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  onClick={() => examInputRef.current?.click()}
+                  disabled={isBusy || !step1Done}
+                >
+                  <Upload className="mr-1 h-3.5 w-3.5" />
+                  업로드
+                </Button>
                 <input
-                  ref={fileInputRef}
+                  ref={examInputRef}
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg"
                   multiple
-                  onChange={handleDevFileUpload}
+                  onChange={handleExamUpload}
                   className="hidden"
                 />
               </div>
-              {pageCount > 0 && (
-                <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 px-4 py-2.5 text-sm text-green-700">
-                  <FileText className="h-4 w-4" />
-                  <span>{pageCount}개 파일 업로드됨</span>
-                </div>
-              )}
-            </section>
-          ) : isUsbMode ? (
-            /* USB 드라이브 모드 */
-            <section>
-              <h3 className="mb-3 text-sm font-semibold text-gray-700">
-                <Usb className="inline h-4 w-4 mr-1" />
-                USB 스캐너
-              </h3>
-              {selectedDevice?.onTouchLitePath ? (
-                /* Canon 모드: ONTOUCHL.exe 실행 → 폴더 가져오기 */
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-                    <p className="text-sm text-blue-800 font-medium mb-2">Canon 스캐너 워크플로우</p>
-                    <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
-                      <li>아래 버튼으로 Capture OnTouch Lite를 실행하세요</li>
-                      <li>OnTouch Lite에서 스캔한 이미지를 원하는 폴더에 저장하세요</li>
-                      <li>&quot;이미지 가져오기&quot; 버튼으로 저장된 이미지를 가져오세요</li>
-                    </ol>
-                  </div>
-                  {!onTouchLaunched ? (
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        window.electronAPI!.scanner.launchOnTouchLite(selectedDevice.onTouchLitePath!)
-                        setOnTouchLaunched(true)
-                      }}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Capture OnTouch Lite 실행
-                    </Button>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-xs text-green-700">
-                        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                        OnTouch Lite가 실행되었습니다. 이미지를 저장한 후 아래 버튼을 누르세요.
-                      </div>
-                      <Button
-                        className="w-full"
-                        variant="primary"
-                        disabled={isImporting}
-                        onClick={async () => {
-                          setIsImporting(true)
-                          await importFromFolder()
-                          setIsImporting(false)
-                        }}
-                      >
-                        <FolderOpen className="h-4 w-4 mr-2" />
-                        {isImporting ? '가져오는 중...' : '이미지 가져오기 (폴더 선택)'}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : selectedDevice?.hasImageFiles ? (
-                /* 일반 USB: 드라이브에서 직접 가져오기 */
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-600">
-                    USB 드라이브에서 이미지 파일을 가져옵니다.
-                  </p>
-                  <Button
-                    className="w-full"
-                    disabled={isImporting}
-                    onClick={async () => {
-                      setIsImporting(true)
-                      await importFromDrive(selectedDevice.driveLetter!)
-                      setIsImporting(false)
-                    }}
-                  >
-                    <Usb className="h-4 w-4 mr-2" />
-                    {isImporting ? '가져오는 중...' : `USB에서 이미지 가져오기 (${selectedDevice.driveLetter})`}
-                  </Button>
-                  <button
-                    className="text-xs text-blue-600 hover:underline"
-                    disabled={isImporting}
-                    onClick={async () => {
-                      setIsImporting(true)
-                      await importFromFolder()
-                      setIsImporting(false)
-                    }}
-                  >
-                    다른 폴더에서 가져오기...
-                  </button>
-                </div>
-              ) : null}
-              {pageCount > 0 && (
-                <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 px-4 py-2.5 text-sm text-green-700">
-                  <FileText className="h-4 w-4" />
-                  <span>{pageCount}개 이미지 가져옴</span>
-                </div>
-              )}
-            </section>
-          ) : (
-            /* 프로덕션: TWAIN/WIA 스캔 설정 */
-            <>
-              <section>
-                <h3 className="mb-3 text-sm font-semibold text-gray-700">스캔 설정</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <label className="w-24 shrink-0 text-sm text-gray-600">급지방식</label>
-                    <select
-                      value={source}
-                      onChange={(e) => setSource(e.target.value as Source)}
-                      className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="feeder">자동급지</option>
-                      <option value="glass">평판</option>
-                      <option value="duplex">양면</option>
-                    </select>
-                  </div>
+            </div>
+            {examScanStatus && (
+              <div className="flex items-center gap-2 rounded-md bg-blue-50 px-4 py-2.5 text-sm text-blue-700 mb-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>
+                  {examScanStatus === 'scanning' && '스캐너에서 스캔 중...'}
+                  {examScanStatus === 'reading' && '스캔 파일 읽는 중...'}
+                </span>
+              </div>
+            )}
+            {pageCount === 0 && !examScanStatus ? (
+              <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                스캐너에 학생 답안지를 올려두고 스캔 버튼을 누르세요.
+              </p>
+            ) : pageCount > 0 ? (
+              <div className="flex items-center gap-2 rounded-md bg-green-50 px-4 py-2.5 text-sm text-green-700">
+                <FileText className="h-4 w-4" />
+                <span>{pageCount}장 스캔됨</span>
+              </div>
+            ) : null}
+          </section>
 
-                  <div className="flex items-center gap-3">
-                    <label className="w-24 shrink-0 text-sm text-gray-600">해상도</label>
-                    <select
-                      value={dpi}
-                      onChange={(e) => setDpi(Number(e.target.value) as Dpi)}
-                      className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value={150}>150 dpi</option>
-                      <option value={200}>200 dpi</option>
-                      <option value={300}>300 dpi</option>
-                      <option value={600}>600 dpi</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <label className="w-24 shrink-0 text-sm text-gray-600">컬러모드</label>
-                    <select
-                      value={colorMode}
-                      onChange={(e) => setColorMode(e.target.value as ColorMode)}
-                      className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="bw">흑백</option>
-                      <option value="gray">회색조</option>
-                      <option value="color">컬러</option>
-                    </select>
-                  </div>
-                </div>
-              </section>
-            </>
-          )}
-
-          {/* 3. 다페이지 설정 */}
-          <section>
+          {/* 다페이지 설정 */}
+          <section className={!step2Done ? "opacity-50 pointer-events-none" : ""}>
             <h3 className="mb-3 text-sm font-semibold text-gray-700">다페이지 설정</h3>
             <div className="space-y-2">
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50">
@@ -402,52 +385,20 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
               </label>
             </div>
           </section>
-
-          {/* Error banner */}
-          {lastError && (
-            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-              <p className="text-sm text-red-700">{lastError}</p>
-            </div>
-          )}
         </div>
 
         {/* Bottom bar */}
         <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4 rounded-b-xl">
-          {isScanning ? (
-            <>
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
-                <span>스캔 중...</span>
-                <span className="font-semibold text-blue-600">{pageCount}페이지</span>
-                <span>완료</span>
-              </div>
-              <Button variant="primary" className="bg-red-600 hover:bg-red-700" onClick={stopScan}>
-                중단
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" onClick={onClose}>
-                취소
-              </Button>
-              {isDevMode || isUsbMode ? (
-                <Button
-                  onClick={onScanComplete}
-                  disabled={!selectedKeyId || answerKeys.length === 0 || pageCount === 0}
-                >
-                  분류 시작 ({pageCount}페이지)
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleStartScan}
-                  disabled={!selectedKeyId || answerKeys.length === 0}
-                >
-                  스캔 시작
-                </Button>
-              )}
-            </>
-          )}
+          <Button variant="outline" onClick={onClose} disabled={isBusy}>
+            취소
+          </Button>
+          <Button
+            variant="cta"
+            onClick={onScanComplete}
+            disabled={!canStart}
+          >
+            채점 시작 ({pageCount}장)
+          </Button>
         </div>
       </div>
     </div>

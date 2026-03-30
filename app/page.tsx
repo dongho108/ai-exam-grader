@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
-import { UploadAnswerKey } from "@/features/grader/components/upload-answer-key";
+import { IdleScreen } from "@/features/grader/components/idle-screen";
 import { GradingWorkspace } from "@/features/grader/components/grading-workspace";
 import { useTabStore, StoreExamSession } from "@/store/use-tab-store";
 import { useInitialData } from "@/hooks/use-initial-data";
@@ -79,9 +79,16 @@ export default function Home() {
       <Header />
 
       <main className="flex-1 overflow-hidden relative p-4">
-        {activeTab ? (
+        {useScanStore((s) => s.isScanWorkflowOpen) ? (
+          <ScanWorkflowShell
+            onGradeStart={(students) => {
+              const answerKeys = useScanStore.getState().answerKeys
+              return useTabStore.getState().addTabFromScan({ students, answerKeys })
+            }}
+          />
+        ) : activeTab ? (
            activeTab.status === 'idle' || activeTab.status === 'extracting' ? (
-             <UploadAnswerKey />
+             <IdleScreen />
            ) : activeTab.status === 'ready' && answerKeyFile ? (
              <GradingWorkspace
                tabId={activeTab.id}
@@ -103,14 +110,6 @@ export default function Home() {
           </div>
         )}
       </main>
-
-      {/* Scanner Workflow Overlay */}
-      <ScanWorkflowShell
-        onGradeStart={(students) => {
-          const answerKeys = useScanStore.getState().answerKeys
-          return useTabStore.getState().addTabFromScan({ students, answerKeys })
-        }}
-      />
     </div>
   );
 }

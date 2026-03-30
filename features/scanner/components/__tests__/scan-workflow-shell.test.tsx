@@ -4,10 +4,6 @@ import { ScanWorkflowShell } from '../scan-workflow-shell'
 import { useScanStore } from '@/store/use-scan-store'
 
 // Mock child components to capture props and simulate callbacks
-vi.mock('../answer-key-management', () => ({
-  AnswerKeyManagement: () => <div data-testid="answer-key-management">AnswerKeyManagement</div>,
-}))
-
 vi.mock('../batch-scan-modal', () => ({
   BatchScanModal: ({ open, onClose, onScanComplete }: any) => (
     <div data-testid="batch-scan-modal">
@@ -49,7 +45,7 @@ vi.mock('../classification-review', () => ({
 
 // Mock the scanner availability hook used indirectly
 vi.mock('../../hooks/use-scanner-availability', () => ({
-  useScannerAvailability: () => ({ available: true, isElectron: true }),
+  useScannerAvailability: () => ({ available: true, isElectron: true, devices: [] }),
 }))
 
 describe('ScanWorkflowShell', () => {
@@ -73,31 +69,19 @@ describe('ScanWorkflowShell', () => {
   })
 
   describe('스텝 전환', () => {
-    it('초기 스텝 = answer-keys', () => {
+    it('초기 스텝 = scan-config (배치 스캔)', () => {
       render(<ScanWorkflowShell />)
-      expect(screen.getByTestId('answer-key-management')).toBeInTheDocument()
-    })
-
-    it('정답지 등록 완료 → scan-config로 전환', () => {
-      render(<ScanWorkflowShell />)
-      // Click "다음" button
-      const nextBtn = screen.getByRole('button', { name: /다음/ })
-      fireEvent.click(nextBtn)
       expect(screen.getByTestId('batch-scan-modal')).toBeInTheDocument()
     })
 
     it('스캔 완료 → classifying으로 전환', () => {
       render(<ScanWorkflowShell />)
-      // Go to scan-config
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
-      // Complete scan
       fireEvent.click(screen.getByTestId('scan-modal-complete'))
       expect(screen.getByTestId('classification-progress')).toBeInTheDocument()
     })
 
     it('분류 완료 → reviewing으로 전환', () => {
       render(<ScanWorkflowShell />)
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
       fireEvent.click(screen.getByTestId('scan-modal-complete'))
       fireEvent.click(screen.getByTestId('classification-complete'))
       expect(screen.getByTestId('classification-review')).toBeInTheDocument()
@@ -105,23 +89,15 @@ describe('ScanWorkflowShell', () => {
   })
 
   describe('닫기 제어', () => {
-    it('answer-keys 스텝에서 닫기 → 가능', () => {
+    it('scan-config 스텝에서는 top bar 없음 (BatchScanModal 내부에서 닫기)', () => {
       render(<ScanWorkflowShell />)
-      const closeBtn = screen.getByLabelText('닫기')
-      expect(closeBtn).not.toBeDisabled()
-    })
-
-    it('scanning 스텝에서 닫기 → 비활성화', () => {
-      render(<ScanWorkflowShell />)
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
-      // Now in scan-config step — close should be disabled
-      const closeBtn = screen.getByLabelText('닫기')
-      expect(closeBtn).toBeDisabled()
+      // scan-config 단계에서 top bar의 닫기 버튼은 없음
+      // BatchScanModal 내부의 Close 버튼으로 닫기
+      expect(screen.getByTestId('scan-modal-close')).toBeInTheDocument()
     })
 
     it('reviewing 스텝에서 닫기 → 가능', () => {
       render(<ScanWorkflowShell />)
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
       fireEvent.click(screen.getByTestId('scan-modal-complete'))
       fireEvent.click(screen.getByTestId('classification-complete'))
       const closeBtn = screen.getByLabelText('닫기')
@@ -132,35 +108,30 @@ describe('ScanWorkflowShell', () => {
   describe('되돌아가기', () => {
     it('reviewing에서 "이전 단계로" → classifying', () => {
       render(<ScanWorkflowShell />)
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
       fireEvent.click(screen.getByTestId('scan-modal-complete'))
       fireEvent.click(screen.getByTestId('classification-complete'))
-      // Now in reviewing
       fireEvent.click(screen.getByTestId('review-back'))
       expect(screen.getByTestId('classification-progress')).toBeInTheDocument()
     })
 
     it('reviewing에서 "다시 스캔" → scan-config', () => {
       render(<ScanWorkflowShell />)
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
       fireEvent.click(screen.getByTestId('scan-modal-complete'))
       fireEvent.click(screen.getByTestId('classification-complete'))
-      // Now in reviewing
       fireEvent.click(screen.getByTestId('review-rescan'))
-      // resetSession clears data, openWorkflow re-opens, step goes to scan-config
       expect(screen.getByTestId('batch-scan-modal')).toBeInTheDocument()
     })
   })
 
-  it('isScanWorkflowOpen이 false이면 렌더링하지 않음', () => {
-    useScanStore.setState({ isScanWorkflowOpen: false })
-    const { container } = render(<ScanWorkflowShell />)
-    expect(container.innerHTML).toBe('')
+  // isScanWorkflowOpen 제어는 이제 부모(page.tsx)가 담당하므로
+  // ScanWorkflowShell 자체는 항상 렌더링됨
+  it('항상 렌더링됨 (부모가 표시 제어)', () => {
+    render(<ScanWorkflowShell />)
+    expect(screen.getByTestId('batch-scan-modal')).toBeInTheDocument()
   })
 
   describe('커밋 후 닫기 제어', () => {
     function goToReviewStep() {
-      fireEvent.click(screen.getByRole('button', { name: /다음/ }))
       fireEvent.click(screen.getByTestId('scan-modal-complete'))
       fireEvent.click(screen.getByTestId('classification-complete'))
     }
@@ -173,7 +144,6 @@ describe('ScanWorkflowShell', () => {
       fireEvent.click(screen.getByTestId('review-commit'))
 
       expect(onGradeStart).toHaveBeenCalled()
-      // 워크플로우가 여전히 열려 있어야 함
       expect(screen.getByTestId('classification-review')).toBeInTheDocument()
     })
 
@@ -185,7 +155,6 @@ describe('ScanWorkflowShell', () => {
       fireEvent.click(screen.getByTestId('review-commit'))
 
       expect(onGradeStart).toHaveBeenCalled()
-      // 워크플로우가 닫혀야 함 (isScanWorkflowOpen=false로 설정됨)
       expect(screen.queryByTestId('classification-review')).not.toBeInTheDocument()
     })
 

@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid'
 interface PendingFile {
   id: string
   fileName: string
+  status: 'scanning' | 'reading' | 'analyzing'
 }
 
 export function AnswerKeyManagement() {
@@ -24,7 +25,8 @@ export function AnswerKeyManagement() {
   const usbDevice = devices.find(d => d.driver === 'usb-drive')
   const hasNaps2Device = devices.some(d => d.driver === 'twain' || d.driver === 'wia')
 
-  const processScannedFile = async (filePath: string, mimeType: string) => {
+  const processScannedFile = async (filePath: string, mimeType: string, pendingId: string) => {
+    setPendingFiles((prev) => prev.map((p) => p.id === pendingId ? { ...p, status: 'reading' as const } : p))
     const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
 
     const binary = atob(base64)
@@ -35,6 +37,7 @@ export function AnswerKeyManagement() {
     const blob = new Blob([bytes], { type: mimeType })
     const file = new File([blob], `scan-${Date.now()}.${mimeType.split('/')[1] || 'pdf'}`, { type: mimeType })
 
+    setPendingFiles((prev) => prev.map((p) => p.id === pendingId ? { ...p, status: 'analyzing' as const } : p))
     const structure = await extractAnswerStructure(file)
 
     addAnswerKey({
@@ -59,16 +62,14 @@ export function AnswerKeyManagement() {
     }
 
     const pendingId = uuidv4()
-    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: 'USB 스캐너에서 가져오는 중...' }])
+    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: 'USB 스캐너', status: 'reading' }])
 
     try {
       let result: { files: Array<{ filePath: string; mimeType: string }> }
 
       if (usbDevice.hasImageFiles && usbDevice.driveLetter) {
-        // USB 드라이브에 이미지가 이미 있으면 직접 가져오기
         result = await window.electronAPI!.scanner.importFromDrive(usbDevice.driveLetter)
       } else {
-        // 폴더 선택 다이얼로그
         result = await window.electronAPI!.scanner.importFromFolder()
       }
 
@@ -77,8 +78,7 @@ export function AnswerKeyManagement() {
         return
       }
 
-      // 첫 번째 파일을 정답지로 처리
-      await processScannedFile(result.files[0].filePath, result.files[0].mimeType)
+      await processScannedFile(result.files[0].filePath, result.files[0].mimeType, pendingId)
 
       // 나머지 파일 정리
       for (let i = 1; i < result.files.length; i++) {
@@ -102,11 +102,11 @@ export function AnswerKeyManagement() {
     }
 
     const pendingId = uuidv4()
-    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: '스캐너 스캔 중...' }])
+    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: '스캐너', status: 'scanning' }])
 
     try {
       const { filePath, mimeType } = await window.electronAPI!.scanner.scan()
-      await processScannedFile(filePath, mimeType)
+      await processScannedFile(filePath, mimeType, pendingId)
     } catch (err) {
       console.error('[AnswerKeyManagement] Scanner scan failed:', err)
       const message = err instanceof Error ? err.message : String(err)
@@ -129,7 +129,7 @@ export function AnswerKeyManagement() {
     if (!file) return
 
     const pendingId = uuidv4()
-    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: file.name }])
+    setPendingFiles((prev) => [...prev, { id: pendingId, fileName: file.name, status: 'analyzing' }])
 
     try {
       const structure = await extractAnswerStructure(file)
@@ -257,7 +257,11 @@ export function AnswerKeyManagement() {
               <Loader2 className="h-4 w-4 animate-spin text-blue-500 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-500 truncate">{pf.fileName}</p>
-                <p className="text-xs text-gray-400">분석 중...</p>
+                <p className="text-xs text-gray-400">
+                  {pf.status === 'scanning' && '스캐너에서 스캔 중...'}
+                  {pf.status === 'reading' && '스캔 파일 읽는 중...'}
+                  {pf.status === 'analyzing' && '정답지 분석 중...'}
+                </p>
               </div>
             </li>
           ))}
