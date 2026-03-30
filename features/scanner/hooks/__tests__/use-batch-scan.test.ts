@@ -269,6 +269,69 @@ describe('useBatchScan', () => {
       expect(result.current.lastError).toBe('jam')
     })
 
+    it('NAPS2 피더 빈 용지 메시지 → 정상 종료 (no documents)', async () => {
+      setupNPages(2)
+      // 3번째 호출: NAPS2 stdout으로 전파된 피더 빈 용지 메시지
+      mockScan
+        .mockResolvedValueOnce({ filePath: '/tmp/scan-1.jpg', mimeType: 'image/jpeg' })
+        .mockResolvedValueOnce({ filePath: '/tmp/scan-2.jpg', mimeType: 'image/jpeg' })
+        .mockRejectedValueOnce(new Error('Scan failed: No documents in feeder'))
+
+      const { result } = renderHook(() => useBatchScan())
+      await act(async () => {
+        await result.current.startScan()
+      })
+
+      expect(result.current.isScanning).toBe(false)
+      expect(result.current.lastError).toBeNull()
+      expect(result.current.pageCount).toBe(2)
+    })
+
+    it('NAPS2 피더 빈 용지 메시지 → 정상 종료 (feeder empty)', async () => {
+      mockScan
+        .mockResolvedValueOnce({ filePath: '/tmp/scan-1.jpg', mimeType: 'image/jpeg' })
+        .mockRejectedValueOnce(new Error('Scan failed: feeder empty'))
+
+      const { result } = renderHook(() => useBatchScan())
+      await act(async () => {
+        await result.current.startScan()
+      })
+
+      expect(result.current.isScanning).toBe(false)
+      expect(result.current.lastError).toBeNull()
+    })
+
+    it('ADF 피더에서 1장 이상 스캔 후 Command failed → 용지 소진으로 정상 종료', async () => {
+      mockScan
+        .mockResolvedValueOnce({ filePath: '/tmp/scan-1.jpg', mimeType: 'image/jpeg' })
+        .mockRejectedValueOnce(
+          new Error("Error invoking remote method 'scanner:scan': Error: Scan failed: Command failed: NAPS2.Console.exe ..."),
+        )
+
+      const { result } = renderHook(() => useBatchScan())
+      await act(async () => {
+        await result.current.startScan()
+      })
+
+      expect(result.current.isScanning).toBe(false)
+      expect(result.current.lastError).toBeNull()
+      expect(result.current.pageCount).toBe(1)
+    })
+
+    it('ADF 피더에서 0장 스캔 시 Command failed → 에러로 처리', async () => {
+      mockScan.mockRejectedValueOnce(
+        new Error("Error invoking remote method 'scanner:scan': Error: Scan failed: Command failed: NAPS2.Console.exe ..."),
+      )
+
+      const { result } = renderHook(() => useBatchScan())
+      await act(async () => {
+        await result.current.startScan()
+      })
+
+      expect(result.current.isScanning).toBe(false)
+      expect(result.current.lastError).not.toBeNull()
+    })
+
     it('알 수 없는 에러 → lastError 설정 + 스캔 중단', async () => {
       mockScan.mockRejectedValueOnce(new Error('unexpected hardware failure'))
 

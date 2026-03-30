@@ -635,6 +635,25 @@ describe('ScannerService - 단위 테스트', () => {
 
       await expect(service.scan({ format: 'jpeg' })).rejects.toThrow('스캐너 접근 권한이 없습니다');
     });
+
+    it('NAPS2가 stderr 없이 stdout으로 에러를 출력하면 stdout이 에러 메시지에 포함된다', async () => {
+      vi.spyOn(fs, 'accessSync').mockImplementation(() => {});
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any);
+
+      const mockExecFile = vi.mocked(execFile);
+      mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+        // NAPS2는 에러를 stdout으로 출력하고 stderr는 비어있음
+        (callback as Function)(
+          new Error('Command failed'),
+          'No device was specified. Either use "--profile" to specify a profile with a device, or use "--device" to choose a particular device.',
+          '',
+        );
+        return {} as any;
+      });
+
+      await expect(service.scan({ driver: 'wia', format: 'jpeg' })).rejects.toThrow('No device was specified');
+    });
   });
 
   describe('readScanFile()', () => {

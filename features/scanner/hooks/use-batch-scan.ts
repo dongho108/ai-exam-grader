@@ -97,8 +97,18 @@ export function useBatchScan(): UseBatchScanReturn {
         const lowerMessage = message.toLowerCase()
         console.error('[Scanner UI] startScan: 에러 발생:', message)
 
-        if (lowerMessage.includes('no-more-pages') || lowerMessage.includes('no more pages')) {
-          console.log('[Scanner UI] startScan: ADF 종료 (no-more-pages)')
+        const noMorePagesPatterns = [
+          'no-more-pages', 'no more pages', 'no documents', 'feeder empty',
+          'out of paper', 'feeder is empty', 'no paper', 'adf empty',
+        ]
+        const isNoMorePages = noMorePagesPatterns.some(p => lowerMessage.includes(p))
+        // ADF 피더에서 1장 이상 스캔 후 일반 실패 → 용지 소진으로 간주
+        const isFeederExhausted = mergedScanOptions.source === 'feeder'
+          && currentPageCount > 0
+          && lowerMessage.includes('command failed')
+
+        if (isNoMorePages || isFeederExhausted) {
+          console.log('[Scanner UI] startScan: ADF 종료', isFeederExhausted ? '(용지 소진 추정)' : '(no-more-pages)')
           break
         } else if (lowerMessage.includes('jam') || lowerMessage.includes('paper jam')) {
           console.warn('[Scanner UI] startScan: 용지 걸림')

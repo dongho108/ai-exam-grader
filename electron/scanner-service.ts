@@ -562,7 +562,7 @@ export class ScannerService {
             console.error('[Scanner] scan: killed:', error.killed);
             console.error('[Scanner] scan: code:', (error as NodeJS.ErrnoException).code);
 
-            const errorText = stderr || error.message;
+            const errorText = stderr || stdout || error.message;
 
             // 권한 에러 감지
             if (/UnauthorizedAccessException|Access.*denied/i.test(errorText)) {
