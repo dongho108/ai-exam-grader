@@ -76,7 +76,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 680,
-    title: 'AI 채점기',
+    title: isDev ? 'Gradely (dev)' : 'Gradely',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
