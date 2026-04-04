@@ -10,7 +10,9 @@ import { ReportIssueModal } from "./report-issue-modal";
 import { SubmissionList } from "./submission-list";
 import { GradingResultPanel } from "./grading-result-panel";
 import { StudentSubmission } from "@/types/grading";
-import { Upload, Sparkles, FileText, ClipboardList } from "lucide-react";
+import { Upload, Sparkles, FileText, ClipboardList, ScanLine } from "lucide-react";
+import { ScanSettingsPopover } from "@/features/scanner/components/scan-settings-popover";
+import { useScannerAvailability } from "@/features/scanner/hooks/use-scanner-availability";
 import { Button } from "@/components/ui/button";
 import { extractExamStructure, calculateGradingResult, recalculateAfterEdit, toggleCorrectStatus } from "@/lib/grading-service";
 import { cn } from "@/lib/utils";
@@ -41,6 +43,8 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   const { isAuthenticated, signInWithGoogle } = useAuthStore();
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showScanPopover, setShowScanPopover] = useState(false);
+  const { available: scannerAvailable, isElectron: isScannerElectron } = useScannerAvailability();
 
   // Queue system for parallel processing (max 5 concurrent)
   const MAX_CONCURRENT = 5;
@@ -288,7 +292,7 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
           )}
         </div>
         
-        <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
+        <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0 relative">
           <input
             ref={fileInputRef}
             type="file"
@@ -297,24 +301,44 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
             className="hidden"
             onChange={handleFileUpload}
           />
-          <Button
-            variant="cta"
-            className="w-full gap-2 py-6 text-base font-bold shadow-lg shadow-primary/20"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isGrading}
-          >
-            {isGrading ? (
-              <>
-                <Sparkles className="w-5 h-5 animate-spin" />
-                채점 중...
-              </>
-            ) : (
-              <>
-                <Upload className="w-5 h-5" />
-                학생 답안 업로드
-              </>
+          <div className="flex gap-2">
+            <Button
+              variant="cta"
+              className="flex-1 gap-2 py-6 text-base font-bold shadow-lg shadow-primary/20"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isGrading}
+            >
+              {isGrading ? (
+                <>
+                  <Sparkles className="w-5 h-5 animate-spin" />
+                  채점 중...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-5 h-5" />
+                  학생 답안 업로드
+                </>
+              )}
+            </Button>
+            {isScannerElectron && scannerAvailable && (
+              <Button
+                variant="outline"
+                className="py-6 px-3 shrink-0"
+                onClick={() => setShowScanPopover(prev => !prev)}
+                disabled={isGrading}
+                title="스캐너로 스캔"
+              >
+                <ScanLine className="w-5 h-5" />
+              </Button>
             )}
-          </Button>
+          </div>
+
+          {showScanPopover && (
+            <ScanSettingsPopover
+              tabId={tabId}
+              onClose={() => setShowScanPopover(false)}
+            />
+          )}
         </div>
       </div>
 

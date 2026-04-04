@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { UploadAnswerKey } from "@/features/grader/components/upload-answer-key";
 import { GradingWorkspace } from "@/features/grader/components/grading-workspace";
+import { AnswerKeyScanPanel } from "@/features/scanner/components/answer-key-scan-panel";
 import { useTabStore, StoreExamSession } from "@/store/use-tab-store";
 import { useInitialData } from "@/hooks/use-initial-data";
 import { useAuthInit } from "@/hooks/use-auth-init";
 import { useSessionSync } from "@/hooks/use-session-sync";
 import { resolveFile } from "@/lib/file-resolver";
 import { Loader2 } from "lucide-react";
-import { ScanWorkflowShell } from "@/features/scanner/components/scan-workflow-shell";
-import { useScanStore } from "@/store/use-scan-store";
 
 /**
  * Resolves the answer key File for a tab.
@@ -64,24 +63,25 @@ function useAnswerKeyFile(activeTab: StoreExamSession | undefined) {
 }
 
 export default function Home() {
-  // Load initial mock data for development
   useInitialData();
   useAuthInit();
   useSessionSync();
 
-  // In a real app we might route by ID, but for SPA feel we use store
   const { activeTabId, tabs } = useTabStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const { file: answerKeyFile, isLoading: isResolvingFile } = useAnswerKeyFile(activeTab);
+  const [showAnswerKeyScan, setShowAnswerKeyScan] = useState(false);
 
   return (
     <div className="flex flex-col h-screen w-full bg-gray-50 overflow-hidden">
       <Header />
 
       <main className="flex-1 overflow-hidden relative p-4">
-        {activeTab ? (
+        {showAnswerKeyScan ? (
+          <AnswerKeyScanPanel onClose={() => setShowAnswerKeyScan(false)} />
+        ) : activeTab ? (
            activeTab.status === 'idle' || activeTab.status === 'extracting' ? (
-             <UploadAnswerKey />
+             <UploadAnswerKey onStartScan={() => setShowAnswerKeyScan(true)} />
            ) : activeTab.status === 'ready' && answerKeyFile ? (
              <GradingWorkspace
                tabId={activeTab.id}
@@ -103,14 +103,6 @@ export default function Home() {
           </div>
         )}
       </main>
-
-      {/* Scanner Workflow Overlay */}
-      <ScanWorkflowShell
-        onGradeStart={(students) => {
-          const answerKeys = useScanStore.getState().answerKeys
-          return useTabStore.getState().addTabFromScan({ students, answerKeys })
-        }}
-      />
     </div>
   );
 }

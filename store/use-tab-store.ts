@@ -30,6 +30,7 @@ interface TabState {
 
   // Scanner Actions
   addTabFromScan: (params: { students: ClassifiedStudent[]; answerKeys: AnswerKeyEntry[] }) => number;
+  addTabFromAnswerKey: (answerKey: { title: string; file: File; structure: import('@/types/grading').AnswerKeyStructure }) => string;
 
   // Persistence Actions
   hydrateFromServer: (sessions: StoreExamSession[], submissions: Record<string, StudentSubmission[]>) => void;
@@ -231,6 +232,29 @@ export const useTabStore = create<TabState>((set, get) => ({
     }));
 
     return newTabs.length;
+  },
+
+  addTabFromAnswerKey: (answerKey) => {
+    const tabId = generateId();
+    const newTab: StoreExamSession = {
+      id: tabId,
+      title: answerKey.title || 'New Exam',
+      createdAt: Date.now(),
+      status: 'ready',
+      answerKeyFile: {
+        name: answerKey.file.name,
+        size: answerKey.file.size,
+        fileRef: answerKey.file,
+      },
+      answerKeyStructure: answerKey.structure,
+    };
+
+    set((state) => ({
+      tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    }));
+
+    return tabId;
   },
 
   hydrateFromServer: (sessions, submissions) => {

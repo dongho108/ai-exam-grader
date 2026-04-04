@@ -5,7 +5,7 @@ export interface ExamSession {
   id: string;
   title: string;
   createdAt: number;
-  status: 'idle' | 'uploading' | 'extracting' | 'ready' | 'grading';
+  status: 'idle' | 'uploading' | 'extracting' | 'ready' | 'grading' | 'scanning-answer';
   
   // Metadata for the Answer Key PDF
   answerKeyFile?: {

@@ -4,14 +4,17 @@ import { useTabStore } from "@/store/use-tab-store";
 import { useAuthStore } from "@/store/use-auth-store";
 import { UploadZone } from "@/features/upload/upload-zone";
 
-import { useState } from "react";
 import { extractAnswerStructure } from "@/lib/grading-service";
 import { uploadAndTrackAnswerKey } from "@/lib/auto-save";
 import { Loader2, ScanLine } from "lucide-react";
 import { useScannerAvailability } from "@/features/scanner/hooks/use-scanner-availability";
-import { useScanStore } from "@/store/use-scan-store";
+import { Button } from "@/components/ui/button";
 
-export function UploadAnswerKey() {
+interface UploadAnswerKeyProps {
+  onStartScan?: () => void;
+}
+
+export function UploadAnswerKey({ onStartScan }: UploadAnswerKeyProps) {
   const { activeTabId, tabs, setAnswerKeyFile, setAnswerKeyStructure } = useTabStore();
   const user = useAuthStore((s) => s.user);
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -59,14 +62,15 @@ export function UploadAnswerKey() {
       
       <UploadZone onFileSelect={handleFileSelect} />
 
-      {isElectron && available && (
-        <button
-          onClick={() => useScanStore.getState().openWorkflow()}
-          className="mt-4 flex items-center gap-2 text-sm text-gray-500 hover:text-primary transition-colors"
+      {isElectron && available && onStartScan && (
+        <Button
+          variant="outline"
+          onClick={onStartScan}
+          className="mt-4 gap-2"
         >
           <ScanLine className="h-4 w-4" />
-          <span>스캐너로 배치 스캔하기</span>
-        </button>
+          스캐너로 정답지 스캔
+        </Button>
       )}
     </div>
   );
