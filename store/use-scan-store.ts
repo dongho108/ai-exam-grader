@@ -1,12 +1,21 @@
 import { create } from 'zustand'
-import type { AnswerKeyEntry, ScanSession, ScannedPage, ClassifiedStudent, ScanSessionStatus } from '@/types'
+import type { AnswerKeyEntry, ScanSession, ScannedPage, ClassifiedStudent } from '@/types'
 import type { StudentExamStructure } from '@/types/grading'
+
+export interface ScanSettings {
+  source: 'glass' | 'feeder' | 'duplex'
+  dpi: number
+  colorMode: 'color' | 'gray' | 'bw'
+}
 
 interface ScanState {
   // Answer keys (persist across sessions)
   answerKeys: AnswerKeyEntry[]
 
-  // Scan workflow
+  // Persisted scan preferences
+  scanSettings: ScanSettings
+
+  // Legacy: scan workflow overlay (kept for backward compat, will be removed in Phase 4)
   isScanWorkflowOpen: boolean
   activeScanSession: ScanSession | null
   scannedPages: ScannedPage[]
@@ -18,7 +27,10 @@ interface ScanActions {
   addAnswerKey: (entry: AnswerKeyEntry) => void
   removeAnswerKey: (id: string) => void
 
-  // Workflow
+  // Scan settings
+  updateScanSettings: (settings: Partial<ScanSettings>) => void
+
+  // Legacy workflow
   openWorkflow: () => void
   closeWorkflow: () => void
 
@@ -31,16 +43,19 @@ interface ScanActions {
   resetSession: () => void
 }
 
-const initialSessionState: Pick<ScanState, 'isScanWorkflowOpen' | 'activeScanSession' | 'scannedPages' | 'classifiedStudents'> = {
-  isScanWorkflowOpen: false,
-  activeScanSession: null,
-  scannedPages: [],
-  classifiedStudents: [],
+const defaultScanSettings: ScanSettings = {
+  source: 'feeder',
+  dpi: 300,
+  colorMode: 'bw',
 }
 
 export const useScanStore = create<ScanState & ScanActions>()((set) => ({
   answerKeys: [],
-  ...initialSessionState,
+  scanSettings: defaultScanSettings,
+  isScanWorkflowOpen: false,
+  activeScanSession: null,
+  scannedPages: [],
+  classifiedStudents: [],
 
   addAnswerKey: (entry) =>
     set((state) => ({
@@ -52,6 +67,11 @@ export const useScanStore = create<ScanState & ScanActions>()((set) => ({
   removeAnswerKey: (id) =>
     set((state) => ({
       answerKeys: state.answerKeys.filter((k) => k.id !== id),
+    })),
+
+  updateScanSettings: (settings) =>
+    set((state) => ({
+      scanSettings: { ...state.scanSettings, ...settings },
     })),
 
   openWorkflow: () => set({ isScanWorkflowOpen: true }),
@@ -72,5 +92,5 @@ export const useScanStore = create<ScanState & ScanActions>()((set) => ({
   setClassifiedStudents: (students) =>
     set({ classifiedStudents: students }),
 
-  resetSession: () => set(initialSessionState),
+  resetSession: () => set({ isScanWorkflowOpen: false, activeScanSession: null, scannedPages: [], classifiedStudents: [] }),
 }))
