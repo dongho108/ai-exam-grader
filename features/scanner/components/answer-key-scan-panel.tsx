@@ -253,7 +253,6 @@ export function AnswerKeyScanPanel({ onClose }: AnswerKeyScanPanelProps) {
             >
               <option value="feeder">자동급지 (단면)</option>
               <option value="duplex">양면</option>
-              <option value="glass">평판</option>
             </select>
           </label>
 

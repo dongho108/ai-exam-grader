@@ -314,7 +314,6 @@ export function BatchScanModal({ open, onClose, onScanComplete }: BatchScanModal
                       className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       <option value="feeder">자동급지</option>
-                      <option value="glass">평판</option>
                       <option value="duplex">양면</option>
                     </select>
                   </div>
