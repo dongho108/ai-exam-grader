@@ -37,6 +37,9 @@ export function GradingWorkspace({ tabId, answerKeyFile }: GradingWorkspaceProps
   const { addSubmission, updateSubmissionGrade, submissions, setSubmissionStatus } = useTabStore();
   const user = useAuthStore((s) => s.user);
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
+  useEffect(() => {
+    setSelectedSubmission(null);
+  }, [tabId]);
   const [isGrading, setIsGrading] = useState(false);
   const [viewMode, setViewMode] = useState<'pdf' | 'result'>('result');
   const fileInputRef = useRef<HTMLInputElement>(null);

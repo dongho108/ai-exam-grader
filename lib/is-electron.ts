@@ -13,7 +13,7 @@ interface ElectronAPI {
       colorMode?: 'color' | 'gray' | 'bw';
       format?: 'pdf' | 'jpeg' | 'png';
       source?: 'glass' | 'feeder' | 'duplex';
-    }) => Promise<{ filePath: string; mimeType: string }>;
+    }) => Promise<{ filePath: string; mimeType: string; additionalFiles?: string[] }>;
     readScanFile: (filePath: string) => Promise<string>;
     cleanupScanFile: (filePath: string) => Promise<void>;
     launchOnTouchLite: (exePath: string) => Promise<void>;

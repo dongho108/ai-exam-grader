@@ -84,6 +84,7 @@ export default function Home() {
              <UploadAnswerKey onStartScan={() => setShowAnswerKeyScan(true)} />
            ) : activeTab.status === 'ready' && answerKeyFile ? (
              <GradingWorkspace
+               key={activeTab.id}
                tabId={activeTab.id}
                answerKeyFile={answerKeyFile}
              />
