@@ -33,6 +33,8 @@ export interface ScanOptions {
 export interface ScanResult {
   filePath: string;
   mimeType: string;
+  /** ADF 멀티페이지 스캔 시 NAPS2가 생성한 추가 파일 경로들 */
+  additionalFiles?: string[];
 }
 
 export interface ScannerDevice {

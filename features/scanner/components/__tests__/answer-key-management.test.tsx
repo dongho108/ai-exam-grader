@@ -33,10 +33,13 @@ describe('AnswerKeyManagement', () => {
     alertSpy.mockRestore()
   })
 
-  // Helper to set up scanner mocks for success case
-  function setupScannerSuccess() {
-    const scanMock = vi.fn().mockResolvedValue({ filePath: '/tmp/scan.pdf', mimeType: 'application/pdf' })
-    const readMock = vi.fn().mockResolvedValue(btoa('fake-pdf-content'))
+  /** 단일 페이지 스캔 mock (additionalFiles 없음) */
+  function setupSinglePageScan() {
+    const scanMock = vi.fn().mockResolvedValue({
+      filePath: '/tmp/scan-1.jpg',
+      mimeType: 'image/jpeg',
+    })
+    const readMock = vi.fn().mockResolvedValue(btoa('fake-image-content'))
     const cleanupMock = vi.fn().mockResolvedValue(undefined)
 
     window.electronAPI = {
@@ -52,8 +55,35 @@ describe('AnswerKeyManagement', () => {
     return { scanMock, readMock, cleanupMock }
   }
 
-  it('스캔 성공 → 정답지 등록', async () => {
-    const { scanMock, readMock, cleanupMock } = setupScannerSuccess()
+  /** ADF 멀티페이지 스캔 mock (additionalFiles 포함) */
+  function setupMultiPageScan(pageCount: number) {
+    const additionalFiles = pageCount > 1
+      ? Array.from({ length: pageCount - 1 }, (_, i) => `/tmp/scan.${i + 2}.jpg`)
+      : undefined
+
+    const scanMock = vi.fn().mockResolvedValue({
+      filePath: '/tmp/scan.1.jpg',
+      mimeType: 'image/jpeg',
+      additionalFiles,
+    })
+    const readMock = vi.fn().mockResolvedValue(btoa('fake-image-content'))
+    const cleanupMock = vi.fn().mockResolvedValue(undefined)
+
+    window.electronAPI = {
+      ...window.electronAPI!,
+      scanner: {
+        ...window.electronAPI!.scanner,
+        scan: scanMock,
+        readScanFile: readMock,
+        cleanupScanFile: cleanupMock,
+      },
+    } as any
+
+    return { scanMock, readMock, cleanupMock }
+  }
+
+  it('스캔 성공 → 정답지 1개 등록 (단일 페이지)', async () => {
+    const { scanMock, readMock, cleanupMock } = setupSinglePageScan()
     const mockStructure = { title: '수학 시험', answers: { '1': { text: '①' } }, totalQuestions: 1 }
     vi.mocked(extractAnswerStructure).mockResolvedValue(mockStructure)
 
@@ -64,16 +94,56 @@ describe('AnswerKeyManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: /스캐너로 스캔/ }))
 
     await waitFor(() => {
-      expect(scanMock).toHaveBeenCalled()
-      expect(readMock).toHaveBeenCalledWith('/tmp/scan.pdf')
-      expect(extractAnswerStructure).toHaveBeenCalled()
+      expect(scanMock).toHaveBeenCalledWith(expect.objectContaining({ format: 'jpeg', source: 'feeder' }))
+      expect(readMock).toHaveBeenCalledWith('/tmp/scan-1.jpg')
+      expect(addAnswerKey).toHaveBeenCalledTimes(1)
       expect(addAnswerKey).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: '수학 시험',
-          structure: mockStructure,
-        })
+        expect.objectContaining({ title: '수학 시험', structure: mockStructure })
       )
-      expect(cleanupMock).toHaveBeenCalledWith('/tmp/scan.pdf')
+      expect(cleanupMock).toHaveBeenCalledWith('/tmp/scan-1.jpg')
+    })
+  })
+
+  it('ADF에 2장 → 정답지 2개 등록 (additionalFiles)', async () => {
+    const { scanMock, readMock, cleanupMock } = setupMultiPageScan(2)
+    const mockStructure1 = { title: '수학 시험', answers: { '1': { text: '①' } }, totalQuestions: 1 }
+    const mockStructure2 = { title: '영어 시험', answers: { '1': { text: '②' } }, totalQuestions: 1 }
+    vi.mocked(extractAnswerStructure)
+      .mockResolvedValueOnce(mockStructure1)
+      .mockResolvedValueOnce(mockStructure2)
+
+    const addAnswerKey = vi.fn()
+    useScanStore.setState({ addAnswerKey })
+
+    render(<AnswerKeyManagement />)
+    fireEvent.click(screen.getByRole('button', { name: /스캐너로 스캔/ }))
+
+    await waitFor(() => {
+      expect(scanMock).toHaveBeenCalledTimes(1) // 단일 호출
+      expect(readMock).toHaveBeenCalledTimes(2) // 2개 파일 읽기
+      expect(readMock).toHaveBeenCalledWith('/tmp/scan.1.jpg')
+      expect(readMock).toHaveBeenCalledWith('/tmp/scan.2.jpg')
+      expect(addAnswerKey).toHaveBeenCalledTimes(2)
+      expect(addAnswerKey).toHaveBeenCalledWith(expect.objectContaining({ title: '수학 시험' }))
+      expect(addAnswerKey).toHaveBeenCalledWith(expect.objectContaining({ title: '영어 시험' }))
+      expect(cleanupMock).toHaveBeenCalledTimes(2)
+    })
+    expect(alertSpy).not.toHaveBeenCalled()
+  })
+
+  it('ADF에 3장 → 정답지 3개 등록', async () => {
+    setupMultiPageScan(3)
+    const mockStructure = { title: 'Test', answers: {}, totalQuestions: 0 }
+    vi.mocked(extractAnswerStructure).mockResolvedValue(mockStructure)
+
+    const addAnswerKey = vi.fn()
+    useScanStore.setState({ addAnswerKey })
+
+    render(<AnswerKeyManagement />)
+    fireEvent.click(screen.getByRole('button', { name: /스캐너로 스캔/ }))
+
+    await waitFor(() => {
+      expect(addAnswerKey).toHaveBeenCalledTimes(3)
     })
   })
 
@@ -82,7 +152,7 @@ describe('AnswerKeyManagement', () => {
       ...window.electronAPI!,
       scanner: {
         ...window.electronAPI!.scanner,
-        scan: vi.fn().mockRejectedValue(new Error('output file not found')),
+        scan: vi.fn().mockRejectedValue(new Error('Scan completed but output file not found')),
       },
     } as any
 
@@ -154,7 +224,6 @@ describe('AnswerKeyManagement', () => {
   })
 
   it('스캔 중 로딩 표시 → 완료 후 제거', async () => {
-    // Use a deferred promise to control scan timing
     let resolveScan: (value: any) => void
     const scanPromise = new Promise((resolve) => { resolveScan = resolve })
 
@@ -181,7 +250,7 @@ describe('AnswerKeyManagement', () => {
     })
 
     // Resolve the scan
-    resolveScan!({ filePath: '/tmp/scan.pdf', mimeType: 'application/pdf' })
+    resolveScan!({ filePath: '/tmp/scan.jpg', mimeType: 'image/jpeg' })
 
     // Loading indicator should disappear
     await waitFor(() => {

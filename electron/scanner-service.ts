@@ -28,6 +28,7 @@ interface ScanOptions {
 interface ScanResult {
   filePath: string;
   mimeType: string;
+  additionalFiles?: string[];
 }
 
 interface ScannerDevice {
@@ -55,6 +56,7 @@ export class ScannerService {
   private currentProcess: ChildProcess | null = null;
   private lastSuccessfulDriver: 'twain' | 'wia' | null = null;
   private lastDetectedDevice: string | null = null;
+  private pendingListDevices: Promise<ListDevicesResult> | null = null;
 
   private get tempDir(): string {
     return path.join(app.getPath('temp'), 'ai-exam-grader-scan');
@@ -310,6 +312,21 @@ export class ScannerService {
    * TWAIN/WIA + USB 드라이브 스캐너를 모두 조회한다.
    */
   async listDevices(): Promise<ListDevicesResult> {
+    // 동시 호출 방지: TWAIN 드라이버가 동시 접근에 취약하므로 하나의 호출만 실행
+    if (this.pendingListDevices) {
+      console.log('[Scanner] listDevices: 이미 진행 중인 호출 대기');
+      return this.pendingListDevices;
+    }
+
+    this.pendingListDevices = this._listDevicesImpl();
+    try {
+      return await this.pendingListDevices;
+    } finally {
+      this.pendingListDevices = null;
+    }
+  }
+
+  private async _listDevicesImpl(): Promise<ListDevicesResult> {
     const allDevices: ScannerDevice[] = [];
     let naps2Error: ListDevicesResult['error'];
 
@@ -546,8 +563,13 @@ export class ScannerService {
   /**
    * NAPS2 프로세스를 실행하여 스캔을 수행한다.
    */
-  private execScanProcess(naps2Path: string, args: string[], tempPath: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  /**
+   * NAPS2 프로세스를 실행하여 스캔을 수행한다.
+   * ADF 멀티페이지 스캔 시 NAPS2가 번호 접미사 파일(uuid.1.jpg, uuid.2.jpg)을
+   * 생성하므로, 모든 출력 파일 경로를 배열로 반환한다.
+   */
+  private execScanProcess(naps2Path: string, args: string[], tempPath: string): Promise<string[]> {
+    return new Promise<string[]>((resolve, reject) => {
       this.currentProcess = execFile(
         naps2Path,
         args,
@@ -577,15 +599,35 @@ export class ScannerService {
           }
 
           // 출력 파일 존재 확인
-          const fileExists = fs.existsSync(tempPath);
-          console.log('[Scanner] scan: 출력 파일 존재:', fileExists, '경로:', tempPath);
-          if (!fileExists) {
-            return reject(new Error('Scan completed but output file not found'));
+          if (fs.existsSync(tempPath)) {
+            const fileSize = fs.statSync(tempPath).size;
+            console.log('[Scanner] scan: 출력 파일 존재, 크기:', fileSize, 'bytes');
+            return resolve([tempPath]);
           }
 
-          const fileSize = fs.statSync(tempPath).size;
-          console.log('[Scanner] scan: 출력 파일 크기:', fileSize, 'bytes');
-          resolve();
+          // NAPS2 ADF 멀티페이지: uuid.1.jpg, uuid.2.jpg 등 번호 접미사 파일 탐색
+          const dir = path.dirname(tempPath);
+          const ext = path.extname(tempPath);
+          const baseName = path.basename(tempPath, ext);
+          const numberedFiles = fs.readdirSync(dir)
+            .filter(f => {
+              const match = f.match(new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.(\\d+)${ext.replace('.', '\\.')}$`));
+              return match !== null;
+            })
+            .sort((a, b) => {
+              const numA = parseInt(a.match(/\.(\d+)\.[^.]+$/)?.[1] ?? '0');
+              const numB = parseInt(b.match(/\.(\d+)\.[^.]+$/)?.[1] ?? '0');
+              return numA - numB;
+            })
+            .map(f => path.join(dir, f));
+
+          if (numberedFiles.length > 0) {
+            console.log('[Scanner] scan: 번호 접미사 파일 발견:', numberedFiles.length, '개');
+            return resolve(numberedFiles);
+          }
+
+          console.error('[Scanner] scan: 출력 파일 없음, 경로:', tempPath);
+          return reject(new Error('Scan completed but output file not found'));
         }
       );
       console.log('[Scanner] scan: 프로세스 시작됨, PID:', this.currentProcess?.pid);
@@ -700,8 +742,9 @@ export class ScannerService {
     this.isScanning = true;
 
     try {
+      let outputFiles: string[];
       try {
-        await this.execScanProcess(naps2Path, args, tempPath);
+        outputFiles = await this.execScanProcess(naps2Path, args, tempPath);
       } catch (firstError) {
         // 드라이버가 명시된 경우 fallback하지 않음
         if (options.driver != null) throw firstError;
@@ -710,6 +753,8 @@ export class ScannerService {
         // 권한 에러 또는 타임아웃은 fallback하지 않음
         if (/권한|UnauthorizedAccessException|Access.*denied/i.test(errMsg)) throw firstError;
         if (/timed out/i.test(errMsg)) throw firstError;
+        // ADF 용지 없음은 드라이버 문제가 아니므로 fallback하지 않음
+        if (/NoMedia|No scanned pages|no.?more.?pages|feeder.?empty|out of paper|no paper|adf.?empty/i.test(errMsg)) throw firstError;
 
         // 대체 드라이버로 재시도
         const altDriver = driver === 'twain' ? 'wia' : 'twain';
@@ -719,21 +764,25 @@ export class ScannerService {
         const altTempPath = path.join(this.tempDir, altFileName);
         const altArgs = this.buildScanArgs(altTempPath, altDriver, dpi, source, colorMode, options.device);
 
-        await this.execScanProcess(naps2Path, altArgs, altTempPath);
+        outputFiles = await this.execScanProcess(naps2Path, altArgs, altTempPath);
         this.lastSuccessfulDriver = altDriver;
 
-        console.log('[Scanner] scan: 성공! (fallback) 파일:', altTempPath);
+        const mimeType = FORMAT_TO_MIME[format] || 'application/octet-stream';
+        console.log('[Scanner] scan: 성공! (fallback) 파일:', outputFiles.length, '개');
         return {
-          filePath: altTempPath,
-          mimeType: FORMAT_TO_MIME[format] || 'application/octet-stream',
+          filePath: outputFiles[0],
+          mimeType,
+          additionalFiles: outputFiles.length > 1 ? outputFiles.slice(1) : undefined,
         };
       }
 
       this.lastSuccessfulDriver = driver;
-      console.log('[Scanner] scan: 성공! 파일:', tempPath);
+      const mimeType = FORMAT_TO_MIME[format] || 'application/octet-stream';
+      console.log('[Scanner] scan: 성공! 파일:', outputFiles.length, '개');
       return {
-        filePath: tempPath,
-        mimeType: FORMAT_TO_MIME[format] || 'application/octet-stream',
+        filePath: outputFiles[0],
+        mimeType,
+        additionalFiles: outputFiles.length > 1 ? outputFiles.slice(1) : undefined,
       };
     } catch (err) {
       console.error('[Scanner] scan: 최종 에러:', (err as Error).message);

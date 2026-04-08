@@ -113,14 +113,19 @@ export function AnswerKeyScanPanel({ onClose }: AnswerKeyScanPanelProps) {
 
     while (!shouldStopRef.current) {
       try {
-        const { filePath, mimeType } = await window.electronAPI!.scanner.scan(scanOptions)
-        const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
-        const ext = mimeType.split('/')[1] ?? 'jpeg'
-        const file = base64ToFile(base64, `answer-key-scan-${scannedFiles.length}.${ext}`, mimeType)
-        await window.electronAPI!.scanner.cleanupScanFile(filePath)
+        const { filePath, mimeType, additionalFiles } = await window.electronAPI!.scanner.scan(scanOptions)
 
-        scannedFiles.push(file)
-        setScanPageCount(scannedFiles.length)
+        // 모든 출력 파일(기본 + ADF 추가 페이지) 처리
+        const allFiles = [filePath, ...(additionalFiles ?? [])]
+        for (const scanFilePath of allFiles) {
+          const base64 = await window.electronAPI!.scanner.readScanFile(scanFilePath)
+          const ext = mimeType.split('/')[1] ?? 'jpeg'
+          const file = base64ToFile(base64, `answer-key-scan-${scannedFiles.length}.${ext}`, mimeType)
+          await window.electronAPI!.scanner.cleanupScanFile(scanFilePath)
+
+          scannedFiles.push(file)
+          setScanPageCount(scannedFiles.length)
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         const lowerMessage = message.toLowerCase()
@@ -128,6 +133,7 @@ export function AnswerKeyScanPanel({ onClose }: AnswerKeyScanPanelProps) {
         const noMorePagesPatterns = [
           'no-more-pages', 'no more pages', 'no documents', 'feeder empty',
           'out of paper', 'feeder is empty', 'no paper', 'adf empty',
+          'nomedia', 'no scanned pages',
         ]
         const isNoMorePages = noMorePagesPatterns.some(p => lowerMessage.includes(p))
         const isFeederExhausted = scanOptions.source === 'feeder'

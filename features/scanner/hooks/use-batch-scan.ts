@@ -74,24 +74,21 @@ export function useBatchScan(): UseBatchScanReturn {
     while (!shouldStopRef.current) {
       try {
         console.log('[Scanner UI] startScan: 페이지', currentPageCount + 1, '스캔 시작')
-        const { filePath, mimeType } = await window.electronAPI!.scanner.scan(mergedScanOptions)
-        console.log('[Scanner UI] startScan: 스캔 완료, filePath:', filePath, ', mimeType:', mimeType)
+        const { filePath, mimeType, additionalFiles } = await window.electronAPI!.scanner.scan(mergedScanOptions)
+        console.log('[Scanner UI] startScan: 스캔 완료, filePath:', filePath, ', additionalFiles:', additionalFiles?.length ?? 0)
 
-        console.log('[Scanner UI] startScan: readScanFile 호출')
-        const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
-        console.log('[Scanner UI] startScan: readScanFile 성공, base64 길이:', base64.length)
-
-        const ext = mimeType.split('/')[1] ?? 'jpeg'
-        const file = base64ToFile(base64, `scan-${currentPageCount}.${ext}`, mimeType)
-
-        addScannedPage({ id: uuidv4(), file })
-
-        console.log('[Scanner UI] startScan: cleanupScanFile 호출')
-        await window.electronAPI!.scanner.cleanupScanFile(filePath)
-
-        currentPageCount += 1
-        setPageCount(currentPageCount)
-        console.log('[Scanner UI] startScan: 페이지', currentPageCount, '완료')
+        // 모든 출력 파일(기본 + 추가)을 순서대로 처리
+        const allFiles = [filePath, ...(additionalFiles ?? [])]
+        for (const scanFilePath of allFiles) {
+          const base64 = await window.electronAPI!.scanner.readScanFile(scanFilePath)
+          const ext = mimeType.split('/')[1] ?? 'jpeg'
+          const file = base64ToFile(base64, `scan-${currentPageCount}.${ext}`, mimeType)
+          addScannedPage({ id: uuidv4(), file })
+          await window.electronAPI!.scanner.cleanupScanFile(scanFilePath)
+          currentPageCount += 1
+          setPageCount(currentPageCount)
+          console.log('[Scanner UI] startScan: 페이지', currentPageCount, '완료')
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         const lowerMessage = message.toLowerCase()
@@ -100,6 +97,7 @@ export function useBatchScan(): UseBatchScanReturn {
         const noMorePagesPatterns = [
           'no-more-pages', 'no more pages', 'no documents', 'feeder empty',
           'out of paper', 'feeder is empty', 'no paper', 'adf empty',
+          'nomedia', 'no scanned pages',
         ]
         const isNoMorePages = noMorePagesPatterns.some(p => lowerMessage.includes(p))
         // ADF 피더에서 1장 이상 스캔 후 일반 실패 → 용지 소진으로 간주

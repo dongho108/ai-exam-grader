@@ -45,21 +45,24 @@ export function useTabScan(tabId: string): UseTabScanReturn {
 
     while (!shouldStopRef.current) {
       try {
-        const { filePath, mimeType } = await window.electronAPI!.scanner.scan(mergedScanOptions)
-        const base64 = await window.electronAPI!.scanner.readScanFile(filePath)
+        const { filePath, mimeType, additionalFiles } = await window.electronAPI!.scanner.scan(mergedScanOptions)
 
-        const ext = mimeType.split('/')[1] ?? 'jpeg'
-        const file = base64ToFile(base64, `student-scan-${currentPageCount}.${ext}`, mimeType)
+        // 모든 출력 파일(기본 + ADF 추가 페이지) 처리
+        const allFiles = [filePath, ...(additionalFiles ?? [])]
+        for (const scanFilePath of allFiles) {
+          const base64 = await window.electronAPI!.scanner.readScanFile(scanFilePath)
+          const ext = mimeType.split('/')[1] ?? 'jpeg'
+          const file = base64ToFile(base64, `student-scan-${currentPageCount}.${ext}`, mimeType)
 
-        // Add directly to tab as a queued submission
-        const submissionId = Math.random().toString(36).substring(2, 9)
-        useTabStore.getState().addSubmission(tabId, file, submissionId)
-        useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'queued')
+          const submissionId = Math.random().toString(36).substring(2, 9)
+          useTabStore.getState().addSubmission(tabId, file, submissionId)
+          useTabStore.getState().setSubmissionStatus(tabId, submissionId, 'queued')
 
-        await window.electronAPI!.scanner.cleanupScanFile(filePath)
+          await window.electronAPI!.scanner.cleanupScanFile(scanFilePath)
 
-        currentPageCount += 1
-        setPageCount(currentPageCount)
+          currentPageCount += 1
+          setPageCount(currentPageCount)
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         const lowerMessage = message.toLowerCase()
@@ -67,6 +70,7 @@ export function useTabScan(tabId: string): UseTabScanReturn {
         const noMorePagesPatterns = [
           'no-more-pages', 'no more pages', 'no documents', 'feeder empty',
           'out of paper', 'feeder is empty', 'no paper', 'adf empty',
+          'nomedia', 'no scanned pages',
         ]
         const isNoMorePages = noMorePagesPatterns.some(p => lowerMessage.includes(p))
         const isFeederExhausted = mergedScanOptions.source === 'feeder'

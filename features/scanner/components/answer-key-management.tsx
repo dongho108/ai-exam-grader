@@ -108,8 +108,26 @@ export function AnswerKeyManagement() {
     setPendingFiles((prev) => [...prev, { id: pendingId, fileName: '스캐너 스캔 중...' }])
 
     try {
-      const { filePath, mimeType } = await window.electronAPI!.scanner.scan()
+      const { filePath, mimeType, additionalFiles } = await window.electronAPI!.scanner.scan({ format: 'jpeg', source: 'feeder' })
+
+      // 첫 번째 페이지 처리
+      setPendingFiles((prev) =>
+        prev.map((p) => p.id === pendingId ? { ...p, fileName: '스캔 완료, 분석 중... (1장)' } : p)
+      )
       await processScannedFile(filePath, mimeType)
+
+      // ADF 멀티페이지: 추가 파일 처리
+      if (additionalFiles && additionalFiles.length > 0) {
+        for (let i = 0; i < additionalFiles.length; i++) {
+          setPendingFiles((prev) =>
+            prev.map((p) => p.id === pendingId
+              ? { ...p, fileName: `스캔 완료, 분석 중... (${i + 2}/${additionalFiles.length + 1}장)` }
+              : p
+            )
+          )
+          await processScannedFile(additionalFiles[i], mimeType)
+        }
+      }
     } catch (err) {
       console.error('[AnswerKeyManagement] Scanner scan failed:', err)
       const message = err instanceof Error ? err.message : String(err)

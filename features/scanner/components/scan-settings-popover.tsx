@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from 'react'
-import { useScanStore } from '@/store/use-scan-store'
+import { useScanStore, type ScanSettings } from '@/store/use-scan-store'
 import { useTabScan } from '@/features/scanner/hooks/use-tab-scan'
 import { useScannerAvailability } from '@/features/scanner/hooks/use-scanner-availability'
 import { ScanProgressBar } from './scan-progress-bar'
