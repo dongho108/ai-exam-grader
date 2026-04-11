@@ -62,7 +62,7 @@ export function UploadAnswerKey({ onStartScan }: UploadAnswerKeyProps) {
       
       <UploadZone onFileSelect={handleFileSelect} />
 
-      {isElectron && available && onStartScan && (
+      {available && onStartScan && (
         <Button
           variant="outline"
           onClick={onStartScan}

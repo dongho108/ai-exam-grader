@@ -310,7 +310,7 @@ export function GradingWorkspace({ tabId, answerKeyFiles }: GradingWorkspaceProp
             onChange={handleFileUpload}
           />
           <div className="flex gap-2">
-            {isScannerElectron && scannerAvailable ? (
+            {scannerAvailable ? (
               <>
                 <Button
                   variant="cta"
