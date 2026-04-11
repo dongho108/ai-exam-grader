@@ -169,18 +169,16 @@ export function getOutDir(): string {
 /**
  * Top-level update check. Safe to call at startup — never throws.
  */
-export async function checkForUIUpdate(): Promise<boolean> {
+export async function checkForUIUpdate(): Promise<void> {
   try {
     console.log('[HotUpdate] Checking for UI bundle update...');
     const manifest = await fetchManifest();
-    if (!manifest) return false;
+    if (!manifest) return;
 
-    if (!needsUpdate(manifest)) return false;
+    if (!needsUpdate(manifest)) return;
 
-    const updated = await downloadAndExtract(manifest);
-    return updated;
+    await downloadAndExtract(manifest);
   } catch (err) {
     console.error(`[HotUpdate] Unexpected error: ${(err as Error).message}`);
-    return false;
   }
 }
