@@ -20,17 +20,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   initialize: () => {
-    // Get initial session
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        set({
-          user: session?.user ?? null,
-          isAuthenticated: !!session?.user,
-          isLoading: false,
-        });
+    // Validate session by calling getUser() which verifies with the server.
+    // getSession() only returns cached localStorage data and may return expired tokens.
+    supabase.auth.getUser()
+      .then(({ data: { user }, error }) => {
+        if (error || !user) {
+          console.warn('[Auth] Session expired or invalid, clearing auth state');
+          set({ user: null, isAuthenticated: false, isLoading: false });
+        } else {
+          set({ user, isAuthenticated: true, isLoading: false });
+        }
       })
       .catch((err) => {
-        console.error('[Auth] Failed to get session:', err);
+        console.error('[Auth] Failed to validate session:', err);
         set({ user: null, isAuthenticated: false, isLoading: false });
       });
 

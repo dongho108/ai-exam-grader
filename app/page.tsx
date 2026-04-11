@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/header";
 import { GradingWorkspace } from "@/features/grader/components/grading-workspace";
 import { AnswerKeyScanPanel } from "@/features/scanner/components/answer-key-scan-panel";
 import { useTabStore, StoreExamSession } from "@/store/use-tab-store";
+import { useAuthStore } from "@/store/use-auth-store";
 import { useScannerStore } from "@/store/use-scanner-store";
 import { useInitialData } from "@/hooks/use-initial-data";
 import { useAuthInit } from "@/hooks/use-auth-init";
@@ -87,15 +88,39 @@ export default function Home() {
   useAuthInit();
   useSessionSync();
 
-  const { activeTabId, tabs } = useTabStore();
+  const { activeTabId, tabs, isHydrating, hydrationError } = useTabStore();
+  const isAuthLoading = useAuthStore((s) => s.isLoading);
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const { files: answerKeyFiles, isLoading: isResolvingFile, error: resolveError, retry: retryResolve } = useAnswerKeyFiles(activeTab);
+
+  // Show loading spinner during auth check or server hydration
+  const isInitialLoading = isAuthLoading || isHydrating;
+
   return (
     <div className="flex flex-col h-screen w-full bg-gray-50 overflow-hidden">
       <Header />
 
       <main className="flex-1 overflow-hidden relative p-4">
-        {activeTab ? (
+        {isInitialLoading ? (
+          <div className="flex flex-col h-full items-center justify-center text-gray-400 gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span>데이터 불러오는 중...</span>
+          </div>
+        ) : hydrationError === 'auth' ? (
+          <div className="flex flex-col h-full items-center justify-center text-gray-500 gap-3">
+            <p>세션이 만료되었습니다. 다시 로그인해주세요.</p>
+          </div>
+        ) : hydrationError === 'network' ? (
+          <div className="flex flex-col h-full items-center justify-center text-gray-500 gap-3">
+            <p>서버 연결에 실패했습니다.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+            >
+              새로고침
+            </button>
+          </div>
+        ) : activeTab ? (
            activeTab.status === 'idle' || activeTab.status === 'extracting' ? (
              <AnswerKeyScanPanel />
            ) : activeTab.status === 'ready' && answerKeyFiles ? (
@@ -120,13 +145,14 @@ export default function Home() {
                </button>
              </div>
            ) : (
-             <div className="flex h-full items-center justify-center text-gray-400">
-               Loading...
+             <div className="flex flex-col h-full items-center justify-center text-gray-400 gap-2">
+               <Loader2 className="w-8 h-8 animate-spin text-primary" />
+               <span>준비 중...</span>
              </div>
            )
         ) : (
           <div className="flex h-full items-center justify-center text-gray-400">
-            No active tab
+            탭을 추가하여 시작하세요
           </div>
         )}
       </main>
