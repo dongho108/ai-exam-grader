@@ -40,6 +40,12 @@ interface TabState {
   activeTabId: string | null;
   submissions: Record<string, StudentSubmission[]>; // tabId -> submissions
 
+  // Hydration state
+  isHydrating: boolean;
+  hydrationError: string | null;
+  setHydrating: (loading: boolean) => void;
+  setHydrationError: (error: string | null) => void;
+
   // Tab Actions
   addTab: () => void;
   removeTab: (id: string) => void;
@@ -68,6 +74,10 @@ export const useTabStore = create<TabState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   submissions: {},
+  isHydrating: false,
+  hydrationError: null,
+  setHydrating: (loading) => set({ isHydrating: loading }),
+  setHydrationError: (error) => set({ hydrationError: error }),
 
   addTab: () => {
     const newTab: StoreExamSession = {
