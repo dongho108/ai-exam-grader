@@ -250,16 +250,16 @@ function ReportCard({
                 <thead>
                   <tr className="text-gray-500 text-xs uppercase">
                     <th className="text-left pb-2 w-12">#</th>
-                    <th className="text-left pb-2">정답</th>
                     <th className="text-left pb-2">문제</th>
+                    <th className="text-left pb-2">정답</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {Object.entries(report.answer_key_structure.answers).map(([num, entry]) => (
                     <tr key={num}>
                       <td className="py-1.5 font-medium text-gray-700">{num}</td>
-                      <td className="py-1.5 text-gray-800">{(entry as { text: string; question?: string }).text}</td>
                       <td className="py-1.5 text-gray-500">{(entry as { text: string; question?: string }).question || '-'}</td>
+                      <td className="py-1.5 text-gray-800">{(entry as { text: string; question?: string }).text}</td>
                     </tr>
                   ))}
                 </tbody>
