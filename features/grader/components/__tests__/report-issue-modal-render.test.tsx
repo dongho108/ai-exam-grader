@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useTabStore } from '@/store/use-tab-store'
 import { useAuthStore } from '@/store/use-auth-store'
-import type { AnswerKeyStructure, QuestionResult } from '@/types/grading'
+import type { AnswerKeyStructure, QuestionResult, StudentSubmission } from '@/types/grading'
 
 /**
  * ReportIssueModal이 열리는 조건을 검증하는 테스트.
@@ -20,7 +20,17 @@ vi.mock('@/lib/supabase', () => ({
     from: vi.fn().mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: null }),
     }),
+    storage: {
+      from: vi.fn().mockReturnValue({
+        upload: vi.fn().mockResolvedValue({ data: { path: 'uploaded/path.pdf' }, error: null }),
+      }),
+    },
   },
+}))
+
+const mockUploadAnswerKey = vi.fn().mockResolvedValue('user-1/session-1/answer-key.pdf')
+vi.mock('@/lib/storage-service', () => ({
+  uploadAnswerKey: (...args: unknown[]) => mockUploadAnswerKey(...args),
 }))
 
 // 모달 렌더 조건을 재현하는 헬퍼 (grading-workspace.tsx:465-480의 IIFE 로직)
@@ -213,5 +223,82 @@ describe('오류 제보 모달 렌더 조건', () => {
 
     expect(result).not.toBeNull()
     expect(result!.answerKeyStructure).toEqual(mockStructure)
+  })
+})
+
+describe('오류 제보 모달 - answerKeyStoragePath fallback 업로드', () => {
+  const mockFile = new File(['pdf-content'], 'answer.pdf', { type: 'application/pdf' })
+
+  const mockSubmission: Partial<import('@/types/grading').StudentSubmission> = {
+    id: 'sub-1',
+    studentName: '학생1',
+    storagePath: 'user-1/session-1/submissions/sub-1.pdf',
+    score: { correct: 8, total: 10, percentage: 80 },
+    results: [
+      {
+        questionNumber: 1,
+        studentAnswer: 'A',
+        correctAnswer: 'A',
+        isCorrect: true,
+      },
+    ],
+    status: 'graded',
+    fileName: 'test.pdf',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('answerKeyStoragePath가 비어있고 fileRefs가 있으면 업로드 후 제보해야 한다', async () => {
+    // 이 테스트는 report-issue-modal에 answerKeyFileRefs prop이 추가된 후 통과할 것임
+    const { ReportIssueModal } = await import('../report-issue-modal')
+
+    const onClose = vi.fn()
+
+    render(
+      <ReportIssueModal
+        submission={mockSubmission as import('@/types/grading').StudentSubmission}
+        sessionId="session-1"
+        userId="user-1"
+        answerKeyStructure={mockStructure}
+        answerKeyStoragePath=""
+        answerKeyFileRefs={[mockFile]}
+        onClose={onClose}
+      />
+    )
+
+    const submitBtn = screen.getByText('제보하기')
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      // fallback 업로드가 호출되었는지 확인
+      expect(mockUploadAnswerKey).toHaveBeenCalledWith('user-1', 'session-1', mockFile)
+    })
+  })
+
+  it('answerKeyStoragePath가 있으면 업로드하지 않아야 한다', async () => {
+    const { ReportIssueModal } = await import('../report-issue-modal')
+
+    const onClose = vi.fn()
+
+    render(
+      <ReportIssueModal
+        submission={mockSubmission as import('@/types/grading').StudentSubmission}
+        sessionId="session-1"
+        userId="user-1"
+        answerKeyStructure={mockStructure}
+        answerKeyStoragePath="user-1/session-1/answer-key.pdf"
+        answerKeyFileRefs={[mockFile]}
+        onClose={onClose}
+      />
+    )
+
+    const submitBtn = screen.getByText('제보하기')
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockUploadAnswerKey).not.toHaveBeenCalled()
+    })
   })
 })
