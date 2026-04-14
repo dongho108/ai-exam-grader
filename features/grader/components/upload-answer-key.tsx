@@ -30,13 +30,15 @@ export function UploadAnswerKey({ onStartScan }: UploadAnswerKeyProps) {
             // 2. Perform AI Extraction
             const structure = await extractAnswerStructure(file);
 
-            // 3. Save the structure to store (Sets status to 'ready')
-            setAnswerKeyStructure(activeTabId, structure);
-
-            // 4. Upload PDF to Supabase Storage (non-blocking)
+            // 3. Upload PDF to Supabase Storage (before setting structure)
+            // status가 'extracting'인 동안 auto-save는 skip하므로,
+            // 업로드 완료 후 structure를 설정해야 storagePath가 함께 저장됨
             if (user?.id) {
-              uploadAndTrackAnswerKey(user.id, activeTabId, file);
+              await uploadAndTrackAnswerKey(user.id, activeTabId, file);
             }
+
+            // 4. Save the structure to store (Sets status to 'ready')
+            setAnswerKeyStructure(activeTabId, structure);
         } catch (error) {
             console.error("Extraction failed:", error);
         }

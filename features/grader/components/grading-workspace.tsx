@@ -541,6 +541,7 @@ function ReportIssueModalWrapper({
       userId={userId}
       answerKeyStructure={answerKeyStructure}
       answerKeyStoragePath={answerKeyStoragePath}
+      answerKeyFileRefs={currentTab?.answerKeyFile?.fileRefs}
       onClose={onClose}
     />
   );

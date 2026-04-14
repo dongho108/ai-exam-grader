@@ -61,6 +61,27 @@ async function saveChanges() {
     if (prevTab && JSON.stringify(prevTab) === JSON.stringify(tab)) continue;
 
     try {
+      // storagePath가 없지만 fileRefs가 있으면 저장 전에 업로드 시도
+      let answerKeyStoragePath = tab.answerKeyFile?.storagePath ?? null;
+      if (!answerKeyStoragePath && tab.answerKeyFile?.fileRefs?.length) {
+        try {
+          answerKeyStoragePath = await uploadAnswerKey(userId, tab.id, tab.answerKeyFile.fileRefs[0]);
+          cacheFile(answerKeyStoragePath, tab.answerKeyFile.fileRefs[0]);
+          // store도 업데이트
+          const currentState = useTabStore.getState();
+          useTabStore.setState({
+            tabs: currentState.tabs.map((t) =>
+              t.id === tab.id && t.answerKeyFile
+                ? { ...t, answerKeyFile: { ...t.answerKeyFile, storagePath: answerKeyStoragePath! } }
+                : t
+            ),
+          });
+          console.log(`[AutoSave] Uploaded missing answer key for ${tab.id}`);
+        } catch (uploadErr) {
+          console.error(`[AutoSave] Failed to upload answer key for ${tab.id}:`, uploadErr);
+        }
+      }
+
       await retryOperation(() =>
         saveSession({
           id: tab.id,
@@ -70,7 +91,7 @@ async function saveChanges() {
           created_at: tab.createdAt,
           answer_key_file_name: tab.answerKeyFile?.name ?? null,
           answer_key_file_size: tab.answerKeyFile?.size ?? null,
-          answer_key_storage_path: tab.answerKeyFile?.storagePath ?? null,
+          answer_key_storage_path: answerKeyStoragePath,
           answer_key_structure: tab.answerKeyStructure ?? null,
           archived_at: null,
           deleted_at: null,

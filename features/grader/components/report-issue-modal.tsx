@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { StudentSubmission } from '@/types/grading';
 import { AnswerKeyStructure } from '@/types/grading';
 import { submitGradingReport } from '@/lib/report-service';
+import { uploadAnswerKey } from '@/lib/storage-service';
 
 interface ReportIssueModalProps {
   submission: StudentSubmission;
@@ -13,6 +14,7 @@ interface ReportIssueModalProps {
   userId: string;
   answerKeyStructure: AnswerKeyStructure;
   answerKeyStoragePath: string;
+  answerKeyFileRefs?: File[];
   onClose: () => void;
 }
 
@@ -22,6 +24,7 @@ export function ReportIssueModal({
   userId,
   answerKeyStructure,
   answerKeyStoragePath,
+  answerKeyFileRefs,
   onClose,
 }: ReportIssueModalProps) {
   const [comment, setComment] = useState('');
@@ -42,6 +45,12 @@ export function ReportIssueModal({
     setError(null);
 
     try {
+      // Fallback: storagePath가 없으면 fileRefs로 업로드 시도
+      let finalAnswerKeyPath = answerKeyStoragePath;
+      if (!finalAnswerKeyPath && answerKeyFileRefs?.length) {
+        finalAnswerKeyPath = await uploadAnswerKey(userId, sessionId, answerKeyFileRefs[0]);
+      }
+
       await submitGradingReport({
         userId,
         sessionId,
@@ -50,7 +59,7 @@ export function ReportIssueModal({
         score: submission.score,
         resultsSnapshot: submission.results,
         answerKeyStructure,
-        answerKeyStoragePath,
+        answerKeyStoragePath: finalAnswerKeyPath,
         submissionStoragePath: submission.storagePath || '',
         comment: comment.trim() || undefined,
       });

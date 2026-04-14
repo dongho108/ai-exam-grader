@@ -224,14 +224,16 @@ function ReportCard({
             <div className="flex gap-3">
               <button
                 onClick={() => onDownload(report.answer_key_storage_path, '정답지.pdf')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition-colors"
+                disabled={!report.answer_key_storage_path}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50"
               >
                 <Download className="w-4 h-4" />
                 정답지 PDF
               </button>
               <button
                 onClick={() => onDownload(report.submission_storage_path, '시험지.pdf')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition-colors"
+                disabled={!report.submission_storage_path}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50"
               >
                 <Download className="w-4 h-4" />
                 시험지 PDF
