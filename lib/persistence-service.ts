@@ -14,6 +14,7 @@ export interface PersistedExamSession {
   answer_key_storage_path: string | null;
   answer_key_structure: AnswerKeyStructure | null;
   archived_at: string | null;
+  deleted_at: string | null;
   updated_at: string;
 }
 
@@ -41,6 +42,7 @@ export async function loadUserSessions(userId: string): Promise<PersistedExamSes
     .select('*')
     .eq('user_id', userId)
     .is('archived_at', null)
+    .is('deleted_at', null)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? []) as PersistedExamSession[];
@@ -56,7 +58,7 @@ export async function saveSession(session: Omit<PersistedExamSession, 'updated_a
 export async function deleteSession(sessionId: string): Promise<void> {
   const { error } = await supabase
     .from('exam_sessions')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', sessionId);
   if (error) throw error;
 }
@@ -112,6 +114,7 @@ export async function loadArchivedSessions(userId: string): Promise<PersistedExa
     .select('*')
     .eq('user_id', userId)
     .not('archived_at', 'is', null)
+    .is('deleted_at', null)
     .order('archived_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as PersistedExamSession[];

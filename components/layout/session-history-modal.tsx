@@ -12,7 +12,6 @@ import {
   deleteSession,
   PersistedExamSession,
 } from '@/lib/persistence-service';
-import { deleteSessionFiles } from '@/lib/storage-service';
 import { StudentSubmission } from '@/types/grading';
 
 interface SessionHistoryModalProps {
@@ -89,9 +88,6 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ onClos
     setDeletingId(session.id);
     try {
       await deleteSession(session.id);
-      await deleteSessionFiles(user.id, session.id).catch(() => {
-        // Storage cleanup is best-effort
-      });
       setSessions((prev) => prev.filter((s) => s.id !== session.id));
       setConfirmDeleteId(null);
     } catch {
