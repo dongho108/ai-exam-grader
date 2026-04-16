@@ -1,7 +1,30 @@
 /**
  * 시멘틱 채점용 시스템 프롬프트
+ *
+ * strict 모드는 클라이언트에서 로컬 텍스트 비교로 처리하므로
+ * 프롬프트가 필요한 것은 standard / lenient 뿐이다.
  */
-export const SEMANTIC_GRADING_PROMPT = `당신은 시험 채점 전문가입니다. 학생의 답안이 정답과 의미적으로 동일한지 판단하세요.
+
+const LENIENT_RULES = `
+
+## 관대 모드 규칙 (아래 규칙은 위의 "엄격함 기준"을 덮어씁니다. 관대 모드에서는 반드시 아래 규칙을 우선 적용하세요.)
+- 핵심 키워드가 포함되어 있으면 정답으로 인정합니다
+- 동의어, 유사 표현을 폭넓게 인정합니다 (예: "경제 성장" ≈ "경제가 발전함")
+- 품사가 달라도 어근이 같고 의미가 통하면 정답입니다 (예: "beauty" ≈ "beautiful", "run" ≈ "running")
+- 자동사/타동사 차이는 무시합니다 (예: "적응하다" ≈ "적응시키다", "adapt" ≈ "adapt to")
+- 사역/피동 차이는 무시합니다 (예: "먹다" ≈ "먹이다", "보다" ≈ "보이다")
+- 부분 답안이라도 핵심 개념을 포함하면 정답으로 인정합니다
+- 다른 언어로 번역한 답이라도 의미가 같으면 정답으로 인정합니다`;
+
+export function getGradingPrompt(strictness: 'standard' | 'lenient' = 'standard'): string {
+  const base = SEMANTIC_GRADING_PROMPT;
+  if (strictness === 'lenient') {
+    return base + LENIENT_RULES;
+  }
+  return base;
+}
+
+const SEMANTIC_GRADING_PROMPT = `당신은 시험 채점 전문가입니다. 학생의 답안이 정답과 의미적으로 동일한지 판단하세요.
 
 ## 판단 기준
 
