@@ -202,8 +202,8 @@ describe('오류 제보 모달 - DB에서 storage path 조회', () => {
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(mockGetSessionStoragePath).toHaveBeenCalledWith('session-1')
-      expect(mockGetSubmissionStoragePath).toHaveBeenCalledWith('sub-1')
+      expect(mockGetSessionStoragePath).toHaveBeenCalledWith('user-1', 'session-1')
+      expect(mockGetSubmissionStoragePath).toHaveBeenCalledWith('user-1', 'session-1', 'sub-1')
     })
   })
 
@@ -229,8 +229,8 @@ describe('오류 제보 모달 - DB에서 storage path 조회', () => {
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(mockGetSessionStoragePath).toHaveBeenCalledWith('session-1')
-      expect(mockGetSubmissionStoragePath).toHaveBeenCalledWith('sub-1')
+      expect(mockGetSessionStoragePath).toHaveBeenCalledWith('user-1', 'session-1')
+      expect(mockGetSubmissionStoragePath).toHaveBeenCalledWith('user-1', 'session-1', 'sub-1')
     })
   })
 })

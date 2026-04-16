@@ -41,10 +41,10 @@ export function ReportIssueModal({
     setError(null);
 
     try {
-      // DB에서 storage path 직접 조회 (로컬 fileRefs에 의존하지 않음)
+      // DB에서 storage path 직접 조회, 없으면 예측 경로로 Storage 확인
       const [answerKeyPath, submissionPath] = await Promise.all([
-        getSessionStoragePath(sessionId),
-        getSubmissionStoragePath(submission.id),
+        getSessionStoragePath(userId, sessionId),
+        getSubmissionStoragePath(userId, sessionId, submission.id),
       ]);
 
       await submitGradingReport({
