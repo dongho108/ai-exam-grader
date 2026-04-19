@@ -378,6 +378,124 @@ describe('calculateGradingResult with strictness', () => {
   })
 })
 
+describe('calculateGradingResult — 관대 모드 한↔영 번역 사전 인정', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset()
+  })
+
+  it('한→영 번역: 정답 "apple"인데 학생 "banana"(영어사전 단어) → AI isCorrect=true 반영 시 정답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: 'apple', question: '사과를 영어로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'banana' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '영어 사전 단어' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-dict-a', answerKey, studentExam, 'lenient')
+
+    expect(mockInvoke).toHaveBeenCalledWith('verify-semantic-grading', {
+      body: {
+        questions: [{
+          id: '1',
+          studentAnswer: 'banana',
+          correctAnswer: 'apple',
+          question: '사과를 영어로?',
+        }],
+        strictness: 'lenient',
+      },
+    })
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+    expect(result.results[0].aiReason).toBe('영어 사전 단어')
+  })
+
+  it('영→한 번역: 문제 "banana를 한글로?", 정답 "바나나"인데 학생 "fruit"(영어사전 단어) → 정답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '바나나', question: 'banana를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'fruit' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '영어 사전 단어' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-dict-b', answerKey, studentExam, 'lenient')
+
+    expect(mockInvoke).toHaveBeenCalledWith('verify-semantic-grading', {
+      body: {
+        questions: [{
+          id: '1',
+          studentAnswer: 'fruit',
+          correctAnswer: '바나나',
+          question: 'banana를 한글로?',
+        }],
+        strictness: 'lenient',
+      },
+    })
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+  })
+
+  it('한→영 번역: 학생 "xyzqpl"(사전 미등재 문자열) → AI isCorrect=false → 오답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: 'apple', question: '사과를 영어로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'xyzqpl' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '사전 미등재' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-dict-no-word', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+    expect(result.results[0].aiReason).toBe('사전 미등재')
+  })
+
+  it('한→영 번역: 정답 "apple"과 학생 "apple" → 당연히 정답 (기존 동작 유지)', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: 'apple', question: '사과를 영어로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'apple' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '정답 일치' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-dict-match', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+  })
+
+  it('standard 모드: 정답 "apple"과 학생 "banana" → AI가 오답 판정 시 오답으로 반영 (회귀 방지)', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: 'apple', question: '사과를 영어로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'banana' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '의미 불일치' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-dict-std', answerKey, studentExam, 'standard')
+
+    expect(mockInvoke).toHaveBeenCalledWith('verify-semantic-grading', {
+      body: expect.objectContaining({ strictness: 'standard' }),
+    })
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+  })
+})
+
 describe('recalculateAfterEdit with strictness', () => {
   beforeEach(() => {
     mockInvoke.mockReset()
