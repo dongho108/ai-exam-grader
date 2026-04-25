@@ -77,19 +77,29 @@ const LENIENT_RULES = `
 - 번역 문항이 아니면(서술형·개념 설명·문장 완성 등) 이 섹션은 적용하지 않고 일반 관대 규칙만 적용합니다.
 
 #### 핵심 규칙
-학생 답안이 **영어 사전에 등재된 실제 영단어**라면, 정답지의 단어와 의미가 전혀 달라도, 품사가 달라도, 문맥상 무관해도 정답(isCorrect: true)으로 인정합니다.
-- 방향 B에서 학생이 한국어 대신 영단어로 써도 정답으로 인정합니다.
-- 사전에 존재하지 않는 철자·오타·무의미한 문자열은 오답입니다 (예: "appl", "xyzqpl", "bananna").
-- 고유명사(사람 이름·지명 등)만인 답안은 일반 영어 사전의 표제어가 아니면 오답입니다.
+학생 답안이 정답의 **영한/한영 사전 번역어**와 일치하면 정답(isCorrect: true)으로 인정합니다.
+- 판단 기준: 정답을 표준 영한/한영 사전에서 찾았을 때, 학생 답안이 그 뜻풀이·번역어로 등재되어 있는지 확인. 반대 방향(학생 답안 → 정답)도 성립하면 인정.
+- 한 단어가 여러 사전 번역어를 가질 경우(다의어), 그 중 어느 하나에라도 일치하면 정답으로 인정합니다.
+- 의미가 유사하거나 같은 범주에 속할 뿐 사전 등재 번역어가 아니면 오답입니다. 예: "apple"의 사전 번역어는 "사과"이며 "fruit(과일)"이나 "banana(바나나)"는 번역어가 아니므로 오답.
+- 학생이 정답 언어와 반대 언어로 적어도 사전 번역어 관계이면 정답 (방향 A/B 모두).
+- 사전 미등재 철자·오타·무의미한 문자열은 오답입니다 (예: "adaptt", "xyzqpl").
+- 고유명사(사람 이름·지명 등)만으로 구성된 답안은 일반 사전 표제어가 아니면 오답.
 
-#### 판단 예시 (few-shot)
-- 문제 "사과를 영어로?", 정답 "apple", 학생 "banana" → isCorrect: true, reason: "영어 사전 단어"
-- 문제 "사과를 영어로?", 정답 "apple", 학생 "apple" → isCorrect: true, reason: "정답 일치"
-- 문제 "사과를 영어로?", 정답 "apple", 학생 "appl" → isCorrect: false, reason: "사전 미등재"
-- 문제 "사과를 영어로?", 정답 "apple", 학생 "xyzqpl" → isCorrect: false, reason: "사전 미등재"
-- 문제 "banana를 한글로?", 정답 "바나나", 학생 "fruit" → isCorrect: true, reason: "영어 사전 단어"
-- 문제 "banana를 한글로?", 정답 "바나나", 학생 "바나나" → isCorrect: true, reason: "정답 일치"
-- 문제 "다음 문장을 해석하시오: ...", 정답 "~라는 의미"(번역 문항 아님), 학생 "apple" → 일반 관대 규칙 적용
+#### 판단 예시 (다의어 중심 few-shot)
+"정답의 사전 번역어 중 하나라도 일치하면 정답" 원칙을 정확히 이해하도록, 한 영단어가 여러 한글 번역어를 가지는 다의어 예시를 우선 제공합니다.
+
+- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "적응하다" → isCorrect: true, reason: "정답 일치"
+- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "각색하다" → isCorrect: true, reason: "adapt의 또 다른 사전 번역어"
+- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "조정하다" → isCorrect: true, reason: "adapt의 또 다른 사전 번역어"
+- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "먹다" → isCorrect: false, reason: "사전 번역어 아님 (오답)"
+- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "변화" → isCorrect: false, reason: "의미 연관일 뿐 사전 번역어 아님 (오답)"
+- 문제 "effectiveness를 한글로?", 정답 "효과성", 학생 "유효성" → isCorrect: true, reason: "effectiveness의 또 다른 사전 번역어"
+- 문제 "effectiveness를 한글로?", 정답 "효과성", 학생 "실효성" → isCorrect: true, reason: "또 다른 사전 번역어"
+- 문제 "effectiveness를 한글로?", 정답 "효과성", 학생 "속도" → isCorrect: false, reason: "번역어 불일치 (오답)"
+- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "adaptt" → isCorrect: false, reason: "사전 미등재 (오타, 오답)"
+- 문제 "각색하다를 영어로?", 정답 "adapt", 학생 "adapt" → isCorrect: true, reason: "정답 일치"
+- 문제 "각색하다를 영어로?", 정답 "adapt", 학생 "각색하다" → isCorrect: true, reason: "사전 역방향 번역어"
+- 문제 "다음 문장을 해석하시오: ...", 정답 "~라는 의미"(번역 문항 아님), 학생 "adapt" → 이 섹션 적용 대상 아님. 일반 관대 규칙 적용
 `;
 
 export function getGradingPrompt(strictness: 'standard' | 'lenient' = 'standard'): string {
