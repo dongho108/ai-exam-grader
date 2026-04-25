@@ -378,6 +378,240 @@ describe('calculateGradingResult with strictness', () => {
   })
 })
 
+describe('calculateGradingResult — 관대 모드 한↔영 사전 번역 인정 (다의어)', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset()
+  })
+
+  // ─── 긍정: 정답 일치 또는 사전 번역어 ───
+
+  it('영→한: 정답 "적응하다" + 학생 "적응하다" → 정답 (일치)', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '적응하다' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '정답 일치' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-1', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+  })
+
+  it('영→한: 정답 "적응하다" + 학생 "각색하다" → AI isCorrect=true (adapt의 또 다른 사전 번역어) → 정답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '각색하다' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: 'adapt의 또 다른 사전 번역어' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-2', answerKey, studentExam, 'lenient')
+
+    expect(mockInvoke).toHaveBeenCalledWith('verify-semantic-grading', {
+      body: {
+        questions: [{
+          id: '1',
+          studentAnswer: '각색하다',
+          correctAnswer: '적응하다',
+          question: 'adapt를 한글로?',
+        }],
+        strictness: 'lenient',
+      },
+    })
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+    expect(result.results[0].aiReason).toBe('adapt의 또 다른 사전 번역어')
+  })
+
+  it('영→한: 정답 "적응하다" + 학생 "조정하다" → AI isCorrect=true → 정답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '조정하다' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: 'adapt의 또 다른 사전 번역어' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-3', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+  })
+
+  it('영→한: 정답 "효과성" + 학생 "유효성" → AI isCorrect=true (effectiveness의 또 다른 번역어) → 정답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '효과성', question: 'effectiveness를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '유효성' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: 'effectiveness의 또 다른 사전 번역어' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-4', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+    expect(result.results[0].aiReason).toBe('effectiveness의 또 다른 사전 번역어')
+  })
+
+  it('영→한: 정답 "효과성" + 학생 "실효성" → 정답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '효과성', question: 'effectiveness를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '실효성' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '또 다른 사전 번역어' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-5', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+  })
+
+  it('한→영: 정답 "adapt" + 학생 "adapt" → 정답 (일치)', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: 'adapt', question: '각색하다를 영어로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'adapt' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '정답 일치' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-6', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(1)
+    expect(result.results[0].isCorrect).toBe(true)
+  })
+
+  // ─── 부정: 무관어 / 범주 연관 / 오타 (회귀 방지) ───
+
+  it('영→한: 정답 "적응하다" + 학생 "먹다"(무관) → AI isCorrect=false → 오답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '먹다' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '사전 번역어 아님' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-neg-1', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+    expect(result.results[0].aiReason).toBe('사전 번역어 아님')
+  })
+
+  it('영→한: 정답 "적응하다" + 학생 "변화"(추상 연관, 사전 번역어 아님) → AI isCorrect=false → 오답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '변화' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '의미 연관일 뿐 사전 번역어 아님' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-neg-2', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+  })
+
+  it('영→한: 정답 "효과성" + 학생 "속도"(무관) → AI isCorrect=false → 오답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '효과성', question: 'effectiveness를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '속도' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '번역어 불일치' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-neg-3', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+  })
+
+  it('영→한: 정답 "적응하다" + 학생 "adaptt"(오타, 사전 미등재) → AI isCorrect=false → 오답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': 'adaptt' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '사전 미등재(오타)' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-neg-4', answerKey, studentExam, 'lenient')
+
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+  })
+
+  // ─── 파라미터 전달 / standard 회귀 ───
+
+  it('관대 모드는 strictness="lenient"로 edge function 호출한다', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: '적응하다', question: 'adapt를 한글로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '각색하다' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: true, reason: '사전 번역어' }] },
+      error: null,
+    })
+
+    await calculateGradingResult('sub-poly-param', answerKey, studentExam, 'lenient')
+
+    expect(mockInvoke).toHaveBeenCalledWith('verify-semantic-grading', {
+      body: expect.objectContaining({ strictness: 'lenient' }),
+    })
+  })
+
+  it('standard 모드: 정답 "adapt" + 학생 "적응하다" → AI isCorrect=false (언어 일치 필수) → 오답', async () => {
+    const answerKey = makeAnswerKey({
+      '1': { text: 'adapt', question: '각색하다를 영어로?' },
+    })
+    const studentExam = makeStudentExam({ '1': '적응하다' })
+
+    mockInvoke.mockResolvedValue({
+      data: { success: true, data: [{ id: '1', isCorrect: false, reason: '언어 일치 필수' }] },
+      error: null,
+    })
+
+    const result = await calculateGradingResult('sub-poly-std', answerKey, studentExam, 'standard')
+
+    expect(mockInvoke).toHaveBeenCalledWith('verify-semantic-grading', {
+      body: expect.objectContaining({ strictness: 'standard' }),
+    })
+    expect(result.score.correct).toBe(0)
+    expect(result.results[0].isCorrect).toBe(false)
+  })
+})
+
 describe('recalculateAfterEdit with strictness', () => {
   beforeEach(() => {
     mockInvoke.mockReset()
