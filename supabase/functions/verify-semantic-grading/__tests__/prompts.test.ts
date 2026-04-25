@@ -98,8 +98,33 @@ describe('getGradingPrompt — lenient 전용 규칙', () => {
     expect(lenient).toContain('사전 번역어')
   })
 
-  it('"사전 번역어가 아니면 오답" 류 가드 문구를 포함한다', () => {
-    expect(lenient).toMatch(/번역어.*아니면|범주.*사전 등재.*아니/)
+  it('"다른 영단어의 번역어" 가드 문구를 포함한다 (오답 판정 기준)', () => {
+    expect(lenient).toContain('다른 영단어의 번역어')
+  })
+
+  it('의미장(semantic field) 표현 인정 규칙을 포함한다', () => {
+    expect(lenient).toContain('의미장')
+    expect(lenient).toMatch(/semantic field|의미장/)
+  })
+
+  it('스냅샷 기반 의미장 일치 긍정 예시(monetary, adapt to)를 포함한다', () => {
+    expect(lenient).toContain('monetary')
+    expect(lenient).toMatch(/돈\s*위주/)
+    expect(lenient).toContain('adapt to')
+    expect(lenient).toMatch(/익숙해지/)
+  })
+
+  it('다른 영단어 번역어 부정 예시(cumulative→계산적인=calculating, authority→관객=audience)를 포함한다', () => {
+    expect(lenient).toContain('cumulative')
+    expect(lenient).toContain('calculating')
+    expect(lenient).toContain('authority')
+    expect(lenient).toContain('audience')
+    expect(lenient).toContain('justify')
+    expect(lenient).toContain('define')
+  })
+
+  it('의미장 판단 가이드(학생 답안을 영어로 역추적) 문구를 포함한다', () => {
+    expect(lenient).toMatch(/영어로 옮겨|영어로 역추적|어떤 영단어/)
   })
 
   it('다의어 긍정 예시(adapt + 적응하다 정답일치)를 포함한다', () => {

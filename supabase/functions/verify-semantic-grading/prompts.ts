@@ -74,32 +74,81 @@ const LENIENT_RULES = `
 문제(question)와 정답(correctAnswer)이 한국어↔영어 번역 쌍일 때만 적용합니다.
 - 방향 A: 문제가 한국어이고 정답이 영어인 경우 (예: 문제 "사과를 영어로?", 정답 "apple")
 - 방향 B: 문제가 영어이고 정답이 한국어인 경우 (예: 문제 "banana를 한글로?", 정답 "바나나")
+- 단어만 제시된 형태(예: 문제 "account", 정답 "설명, 기술")도 한↔영 번역 문항으로 간주합니다.
 - 번역 문항이 아니면(서술형·개념 설명·문장 완성 등) 이 섹션은 적용하지 않고 일반 관대 규칙만 적용합니다.
 
-#### 핵심 규칙
-학생 답안이 정답의 **영한/한영 사전 번역어**와 일치하면 정답(isCorrect: true)으로 인정합니다.
-- 판단 기준: 정답을 표준 영한/한영 사전에서 찾았을 때, 학생 답안이 그 뜻풀이·번역어로 등재되어 있는지 확인. 반대 방향(학생 답안 → 정답)도 성립하면 인정.
-- 한 단어가 여러 사전 번역어를 가질 경우(다의어), 그 중 어느 하나에라도 일치하면 정답으로 인정합니다.
-- 의미가 유사하거나 같은 범주에 속할 뿐 사전 등재 번역어가 아니면 오답입니다. 예: "apple"의 사전 번역어는 "사과"이며 "fruit(과일)"이나 "banana(바나나)"는 번역어가 아니므로 오답.
-- 학생이 정답 언어와 반대 언어로 적어도 사전 번역어 관계이면 정답 (방향 A/B 모두).
-- 사전 미등재 철자·오타·무의미한 문자열은 오답입니다 (예: "adaptt", "xyzqpl").
-- 고유명사(사람 이름·지명 등)만으로 구성된 답안은 일반 사전 표제어가 아니면 오답.
+#### 정답 인정 기준 (다음 중 하나 이상 만족하면 정답)
 
-#### 판단 예시 (다의어 중심 few-shot)
-"정답의 사전 번역어 중 하나라도 일치하면 정답" 원칙을 정확히 이해하도록, 한 영단어가 여러 한글 번역어를 가지는 다의어 예시를 우선 제공합니다.
+(가) **사전 번역어 일치 (다의어 포함)**
+정답을 영한/한영 사전에서 찾았을 때, 학생 답안이 그 뜻풀이·번역어로 등재되어 있으면 정답.
+한 단어가 여러 사전 번역어를 가지는 다의어인 경우, 그 중 어느 하나에라도 일치하면 정답.
 
-- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "적응하다" → isCorrect: true, reason: "정답 일치"
-- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "각색하다" → isCorrect: true, reason: "adapt의 또 다른 사전 번역어"
-- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "조정하다" → isCorrect: true, reason: "adapt의 또 다른 사전 번역어"
-- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "먹다" → isCorrect: false, reason: "사전 번역어 아님 (오답)"
-- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "변화" → isCorrect: false, reason: "의미 연관일 뿐 사전 번역어 아님 (오답)"
-- 문제 "effectiveness를 한글로?", 정답 "효과성", 학생 "유효성" → isCorrect: true, reason: "effectiveness의 또 다른 사전 번역어"
-- 문제 "effectiveness를 한글로?", 정답 "효과성", 학생 "실효성" → isCorrect: true, reason: "또 다른 사전 번역어"
-- 문제 "effectiveness를 한글로?", 정답 "효과성", 학생 "속도" → isCorrect: false, reason: "번역어 불일치 (오답)"
-- 문제 "adapt를 한글로?", 정답 "적응하다", 학생 "adaptt" → isCorrect: false, reason: "사전 미등재 (오타, 오답)"
+(나) **같은 의미장(semantic field) 표현**
+학생 답안이 사전 번역어와 정확히 일치하지 않더라도, **정답 측 영단어의 핵심 의미가 통하는 한국어 표현**이면 정답.
+- 풀어 쓴 표현, 동의어, 유사 표현, 의역 모두 인정
+- 예: "monetary"의 의미장에 속하는 "돈 위주의", "돈과 관련된" 등은 인정
+
+(다) **반대 방향 사전 번역어**
+학생이 정답 언어와 반대 언어로 적었더라도 사전 번역어 관계이면 정답 (방향 A/B 모두).
+
+#### 오답 기준 (다음 중 하나라도 해당하면 오답)
+
+(라) **다른 영단어의 번역어**
+학생 답안이 정답 영단어와 무관한 다른 영단어의 번역어로 더 잘 매핑되는 경우 오답.
+- 예: "cumulative"(누적된)에 "계산적인"(=calculating) → 오답
+- 예: "authority"(권한)에 "관객"(=audience) → 오답
+- 예: "justify"(정당화하다)에 "정의하다"(=define) → 오답
+
+(마) **다른 개념·범주**
+학생 답안이 정답 영단어의 의미장에 속하지 않는 별개 개념인 경우 오답.
+- 예: "apple"(사과)에 "바나나"(=banana) → 오답 (같은 과일 범주여도 다른 단어)
+
+(바) **사전 미등재 철자·오타·무의미한 문자열**
+- 예: "adaptt", "xyzqpl"
+
+(사) **고유명사**
+일반 사전 표제어가 아닌 사람 이름·지명 등은 오답.
+
+#### 의미장(semantic field) 판단 가이드
+"같은 의미장 표현"인지 vs "다른 영단어의 번역어"인지 헷갈릴 때:
+1. 학생 답안을 다시 영어로 옮겨봤을 때 어떤 영단어로 가장 잘 번역되는지 생각합니다.
+2. 그 영단어가 정답 측 영단어(또는 그 다의어)와 같거나 매우 가까우면 (나) 같은 의미장 → 정답.
+3. 그 영단어가 명백히 다른 단어(예: cumulative vs calculating)이면 (라) → 오답.
+
+#### 판단 예시 few-shot
+
+**(가) 다의어 사전 번역어 정답**
+- 문제 "adapt", 정답 "적응하다", 학생 "적응하다" → isCorrect: true, reason: "정답 일치"
+- 문제 "adapt", 정답 "적응하다", 학생 "각색하다" → isCorrect: true, reason: "adapt의 또 다른 사전 번역어"
+- 문제 "adapt", 정답 "적응하다", 학생 "조정하다" → isCorrect: true, reason: "adapt의 또 다른 사전 번역어"
+- 문제 "effectiveness", 정답 "효과성", 학생 "유효성" → isCorrect: true, reason: "effectiveness의 또 다른 사전 번역어"
+- 문제 "effectiveness", 정답 "효과성", 학생 "실효성" → isCorrect: true, reason: "또 다른 사전 번역어"
+- 문제 "lock in", 정답 "고정되다", 학생 "잠기다" → isCorrect: true, reason: "lock의 사전 번역어(잠그다/잠기다)"
+- 문제 "tie", 정답 "(강한) 유대 [관계]", 학생 "묶다" → isCorrect: true, reason: "tie의 다의어(동사 의미)"
+
+**(나) 같은 의미장 표현 정답**
+- 문제 "monetary", 정답 "금전적인", 학생 "돈 위주의" → isCorrect: true, reason: "monetary의 의미장 일치"
+- 문제 "monetary", 정답 "금전적인", 학생 "돈과 관련된" → isCorrect: true, reason: "의미장 일치"
+- 문제 "adapt to", 정답 "~에 적응하다", 학생 "~에 익숙해지다" → isCorrect: true, reason: "adapt to의 의미장 일치 (유의 표현)"
+- 문제 "cast aside", 정답 "~을 버리다, 제쳐 놓다", 학생 "옆으로 치우다" → isCorrect: true, reason: "cast aside의 의미장 일치"
+
+**(라)/(마) 다른 영단어의 번역어 오답**
+- 문제 "cumulative", 정답 "누적된", 학생 "계산적인" → isCorrect: false, reason: "calculating의 번역어 (오답)"
+- 문제 "authority", 정답 "권한", 학생 "관객" → isCorrect: false, reason: "audience의 번역어 (오답)"
+- 문제 "justify", 정답 "정당화하다", 학생 "정의하다" → isCorrect: false, reason: "define의 번역어 (오답)"
+- 문제 "adapt", 정답 "적응하다", 학생 "먹다" → isCorrect: false, reason: "무관한 단어 (오답)"
+- 문제 "adapt", 정답 "적응하다", 학생 "변화" → isCorrect: false, reason: "의미 연관일 뿐 다른 개념 (오답)"
+- 문제 "effectiveness", 정답 "효과성", 학생 "속도" → isCorrect: false, reason: "번역어 불일치 (오답)"
+
+**(바) 오타·미등재 오답**
+- 문제 "adapt", 정답 "적응하다", 학생 "adaptt" → isCorrect: false, reason: "사전 미등재(오타, 오답)"
+
+**역방향 (한→영) 인정**
 - 문제 "각색하다를 영어로?", 정답 "adapt", 학생 "adapt" → isCorrect: true, reason: "정답 일치"
 - 문제 "각색하다를 영어로?", 정답 "adapt", 학생 "각색하다" → isCorrect: true, reason: "사전 역방향 번역어"
-- 문제 "다음 문장을 해석하시오: ...", 정답 "~라는 의미"(번역 문항 아님), 학생 "adapt" → 이 섹션 적용 대상 아님. 일반 관대 규칙 적용
+
+**번역 문항 아님 → 이 섹션 적용 안 함**
+- 문제 "다음 문장을 해석하시오: ...", 정답 "~라는 의미", 학생 "adapt" → 일반 관대 규칙 적용
 `;
 
 export function getGradingPrompt(strictness: 'standard' | 'lenient' = 'standard'): string {
