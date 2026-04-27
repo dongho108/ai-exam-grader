@@ -57,6 +57,26 @@ describe('lib/grading-prompts — lenient 전용', () => {
     expect(lenient).toContain('사전 번역어')
   })
 
+  it('한↔영 번역 문항은 일반 관대 규칙(다른 언어 번역 인정)의 예외임을 명시한다', () => {
+    expect(lenient).toContain('한↔영 번역 문항은 아래 특별 규칙을 따릅니다')
+  })
+
+  it('(다) 언어 일치 필수 규칙을 정답 인정 기준 요약에 포함한다', () => {
+    expect(lenient).toMatch(/\(다\).*언어 일치 필수/)
+    expect(lenient).toMatch(/반대 언어.*오답|반대 언어.*적은 경우.*오답/)
+  })
+
+  it('회귀 방지: 더 이상 "사전 역방향 번역어"를 정답으로 인정하지 않는다', () => {
+    expect(lenient).not.toContain('사전 역방향 번역어')
+    expect(lenient).not.toContain('반대 방향 사전 번역어')
+  })
+
+  it('회귀 방지: "각색하다를 영어로? 정답 adapt 학생 각색하다 → true" 잘못된 few-shot이 없다', () => {
+    // 한국어로 답하라고 한 게 아니므로(번역 방향이 영어), 학생이 한국어 "각색하다"로 답하면 오답이어야 함
+    // → 이 케이스는 isCorrect: true 로 등장하면 안 됨
+    expect(lenient).not.toMatch(/각색하다를 영어로[?？].*학생 "각색하다".*isCorrect:\s*true/s)
+  })
+
   it('단어만 제시된 형태(예: "account")도 한↔영 번역 문항으로 인식', () => {
     expect(lenient).toContain('단어만 제시된')
   })
