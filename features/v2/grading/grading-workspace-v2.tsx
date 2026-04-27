@@ -14,6 +14,8 @@ import { ReportIssueModalV2 } from "./report-issue-modal-v2";
 import {
   calculateGradingResult,
   extractExamStructureFromImages,
+  recalculateAfterEdit,
+  toggleCorrectStatus,
 } from "@/lib/grading-service";
 import { filesToImages } from "@/lib/file-utils";
 import { resolveFile } from "@/lib/file-resolver";
@@ -188,6 +190,46 @@ export function GradingWorkspaceV2({ onScanClick }: GradingWorkspaceV2Props) {
     setView({ kind: "student", submissionId: sub.id });
   };
 
+  const handleAnswerEdit = async (questionNumber: number, newAnswer: string) => {
+    if (!tabId || !currentSubmission?.results) return;
+    const tab = useTabStore.getState().tabs.find((t) => t.id === tabId);
+    const strictness: GradingStrictness =
+      tab?.gradingStrictness ??
+      useUserPreferencesStore.getState().defaultGradingStrictness ??
+      "standard";
+    const updated = await recalculateAfterEdit(
+      currentSubmission.id,
+      currentSubmission.results,
+      questionNumber,
+      newAnswer,
+      currentSubmission.studentName,
+      strictness,
+    );
+    updateSubmissionGrade(tabId, currentSubmission.id, updated);
+  };
+
+  const handleCorrectToggle = (questionNumber: number, newIsCorrect: boolean) => {
+    if (!tabId || !currentSubmission?.results) return;
+    const updated = toggleCorrectStatus(
+      currentSubmission.id,
+      currentSubmission.results,
+      questionNumber,
+      newIsCorrect,
+      currentSubmission.studentName,
+    );
+    updateSubmissionGrade(tabId, currentSubmission.id, updated);
+  };
+
+  const handleStudentNameEdit = (newName: string) => {
+    if (!tabId || !currentSubmission?.results || !currentSubmission.score) return;
+    updateSubmissionGrade(tabId, currentSubmission.id, {
+      submissionId: currentSubmission.id,
+      studentName: newName,
+      score: currentSubmission.score,
+      results: currentSubmission.results,
+    });
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleAddSubmissions = async (files: FileList | File[]) => {
     if (!tabId || !files) return;
@@ -332,6 +374,9 @@ export function GradingWorkspaceV2({ onScanClick }: GradingWorkspaceV2Props) {
           submission={currentSubmission}
           onOpenAnswerKey={() => setView({ kind: "answer-key" })}
           onViewOriginal={() => setPdfViewerSubmission(currentSubmission)}
+          onAnswerEdit={handleAnswerEdit}
+          onCorrectToggle={handleCorrectToggle}
+          onStudentNameEdit={handleStudentNameEdit}
           onReportIssue={
             currentSubmission.status === "graded" && currentSubmission.results && user
               ? () => {

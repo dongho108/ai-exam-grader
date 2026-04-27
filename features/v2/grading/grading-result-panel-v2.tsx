@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Eye, Filter, Flag, Sparkles, X } from "lucide-react";
+import { ChevronDown, Eye, Filter, Flag, Pencil, Sparkles, X } from "lucide-react";
 import type { StudentSubmission, GradingStrictness } from "@/types/grading";
 import { useTabStore } from "@/store/use-tab-store";
 import { useUserPreferencesStore } from "@/store/use-user-preferences-store";
@@ -12,6 +12,9 @@ interface GradingResultPanelV2Props {
   onReportIssue?: () => void;
   onOpenAnswerKey: () => void;
   onViewOriginal?: () => void;
+  onAnswerEdit?: (questionNumber: number, newAnswer: string) => void;
+  onCorrectToggle?: (questionNumber: number, isCorrect: boolean) => void;
+  onStudentNameEdit?: (newName: string) => void;
 }
 
 const STRICTNESS_OPTIONS: ReadonlyArray<{
@@ -37,6 +40,9 @@ export function GradingResultPanelV2({
   onReportIssue,
   onOpenAnswerKey,
   onViewOriginal,
+  onAnswerEdit,
+  onCorrectToggle,
+  onStudentNameEdit,
 }: GradingResultPanelV2Props) {
   const tabs = useTabStore((s) => s.tabs);
   const tab = tabs.find((t) => t.id === tabId);
@@ -49,6 +55,42 @@ export function GradingResultPanelV2({
   const [modeOpen, setModeOpen] = useState(false);
   const [wrongOnly, setWrongOnly] = useState(false);
   const modeRef = useRef<HTMLDivElement>(null);
+
+  const [editingQ, setEditingQ] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+
+  const startEditAnswer = (qNum: number, current: string) => {
+    if (!onAnswerEdit) return;
+    setEditingQ(qNum);
+    setEditValue(current);
+  };
+  const confirmEditAnswer = () => {
+    if (editingQ != null && onAnswerEdit) {
+      const orig = (submission.results ?? []).find((r) => r.questionNumber === editingQ)
+        ?.studentAnswer ?? "";
+      if (editValue !== orig) onAnswerEdit(editingQ, editValue);
+    }
+    setEditingQ(null);
+    setEditValue("");
+  };
+  const cancelEditAnswer = () => {
+    setEditingQ(null);
+    setEditValue("");
+  };
+
+  const startEditName = () => {
+    if (!onStudentNameEdit) return;
+    setEditingName(true);
+    setNameValue(submission.studentName);
+  };
+  const confirmEditName = () => {
+    if (onStudentNameEdit && nameValue.trim() !== "" && nameValue !== submission.studentName) {
+      onStudentNameEdit(nameValue.trim());
+    }
+    setEditingName(false);
+  };
 
   useEffect(() => {
     if (!modeOpen) return;
@@ -75,7 +117,51 @@ export function GradingResultPanelV2({
       <div className="g-result-head">
         <div className="g-result-student">
           <div className="g-result-info">
-            <div className="name">{submission.studentName}</div>
+            {editingName ? (
+              <input
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmEditName();
+                  else if (e.key === "Escape") setEditingName(false);
+                }}
+                onBlur={confirmEditName}
+                autoFocus
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  letterSpacing: "-.015em",
+                  color: "var(--wds-label-strong)",
+                  border: "none",
+                  borderBottom: "1.5px solid var(--wds-primary)",
+                  outline: "none",
+                  background: "transparent",
+                  fontFamily: "inherit",
+                  width: 180,
+                }}
+              />
+            ) : (
+              <div
+                className="name"
+                onClick={startEditName}
+                style={{
+                  cursor: onStudentNameEdit ? "pointer" : "default",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                title={onStudentNameEdit ? "클릭하여 이름 수정" : undefined}
+              >
+                {submission.studentName}
+                {onStudentNameEdit && (
+                  <Pencil
+                    size={12}
+                    style={{ color: "var(--wds-label-assistive)" }}
+                  />
+                )}
+              </div>
+            )}
             <div className="sub">
               {tab?.title ? `${tab.title} · ` : ""}
               {submission.fileName}
@@ -303,33 +389,109 @@ export function GradingResultPanelV2({
                       <span className="g-qcard-num">
                         Q {String(r.questionNumber).padStart(2, "0")}
                       </span>
-                      <span className={`g-ox ${r.isCorrect ? "correct" : "wrong"}`}
-                        style={{ width: 24, height: 24, fontSize: 12 }}
-                      >
-                        {r.isCorrect ? (
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M3 8l3 3 7-7" />
-                          </svg>
-                        ) : (
-                          <X size={12} />
-                        )}
-                      </span>
+                      {onCorrectToggle ? (
+                        <button
+                          type="button"
+                          className={`g-ox ${r.isCorrect ? "correct" : "wrong"}`}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            fontSize: 12,
+                            border: 0,
+                            cursor: "pointer",
+                          }}
+                          onClick={() => onCorrectToggle(r.questionNumber, !r.isCorrect)}
+                          title={r.isCorrect ? "클릭하여 오답으로 변경" : "클릭하여 정답으로 변경"}
+                        >
+                          {r.isCorrect ? (
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M3 8l3 3 7-7" />
+                            </svg>
+                          ) : (
+                            <X size={12} />
+                          )}
+                        </button>
+                      ) : (
+                        <span
+                          className={`g-ox ${r.isCorrect ? "correct" : "wrong"}`}
+                          style={{ width: 24, height: 24, fontSize: 12 }}
+                        >
+                          {r.isCorrect ? (
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M3 8l3 3 7-7" />
+                            </svg>
+                          ) : (
+                            <X size={12} />
+                          )}
+                        </span>
+                      )}
                     </div>
                     {r.question && <div className="g-qcard-q">{r.question}</div>}
                     <div className="g-qcard-ans">
                       <span className="lbl">학생</span>
-                      <span className={`val ${r.isCorrect ? "correct" : "wrong"}`}>
-                        {r.studentAnswer || "— 미응답"}
-                      </span>
+                      {editingQ === r.questionNumber ? (
+                        <input
+                          type="text"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") confirmEditAnswer();
+                            else if (e.key === "Escape") cancelEditAnswer();
+                          }}
+                          onBlur={confirmEditAnswer}
+                          autoFocus
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            border: "1px solid var(--wds-primary)",
+                            borderRadius: 4,
+                            padding: "2px 6px",
+                            outline: "none",
+                            background: "white",
+                            color: "var(--wds-label-strong)",
+                            fontFamily: "inherit",
+                            minWidth: 0,
+                            width: "100%",
+                          }}
+                        />
+                      ) : (
+                        <span
+                          className={`val ${r.isCorrect ? "correct" : "wrong"}`}
+                          onClick={() =>
+                            startEditAnswer(r.questionNumber, r.studentAnswer ?? "")
+                          }
+                          style={{
+                            cursor: onAnswerEdit ? "pointer" : "default",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          title={onAnswerEdit ? "클릭하여 답안 수정" : undefined}
+                        >
+                          {r.isEdited && (
+                            <Pencil size={10} style={{ color: "var(--g-warn)" }} />
+                          )}
+                          {r.studentAnswer || "— 미응답"}
+                        </span>
+                      )}
                       <span className="lbl">정답</span>
                       <span className="val">{r.correctAnswer}</span>
                     </div>
