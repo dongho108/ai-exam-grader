@@ -95,12 +95,17 @@ export default function Home() {
     setMounted(true);
   }, [hydrateUiVariant]);
 
-  // SSR + 첫 클라이언트 렌더는 항상 'classic'으로 일치 (hydration mismatch 방지).
-  // 마운트 후 localStorage에서 변형을 읽어 'wds'면 v2로 전환.
-  if (!mounted || uiVariant !== "wds") {
-    return <ClassicHome />;
+  // SSR + 첫 클라이언트 렌더는 빈 스켈레톤으로 통일해 hydration mismatch를
+  // 막는다. ClassicHome을 첫 프레임에 마운트하면 Header의 auto-addTab 효과가
+  // 발동해 wds 사용자에게도 빈 "New Exam" 탭이 누적되는 부작용이 있어서
+  // 마운트 이후에만 실제 화면을 결정한다.
+  if (!mounted) {
+    return <div className="flex flex-col h-screen w-full bg-gray-50 overflow-hidden" />;
   }
-  return <AppShellV2 />;
+  if (uiVariant === "wds") {
+    return <AppShellV2 />;
+  }
+  return <ClassicHome />;
 }
 
 function ClassicHome() {
