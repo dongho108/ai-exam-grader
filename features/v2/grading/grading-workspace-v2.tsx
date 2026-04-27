@@ -271,7 +271,7 @@ export function GradingWorkspaceV2({ onScanClick }: GradingWorkspaceV2Props) {
 
   return (
     <div className="g-frame-main">
-      <ExamRail />
+      <ExamRail onNewExamClick={onScanClick} />
       <SubmissionListV2
         tabId={tabId}
         view={view}

@@ -70,7 +70,7 @@ export function AppShellV2() {
             </div>
           </div>
         ) : active === "scan" ? (
-          <AnswerKeyScanPanelV2 />
+          <AnswerKeyScanPanelV2 onCreated={() => setActive("grade")} />
         ) : (
           <GradingWorkspaceV2 onScanClick={() => setActive("scan")} />
         )}

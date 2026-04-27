@@ -14,12 +14,15 @@ function formatDate(ts: number): string {
   return `${yyyy}.${mm}.${dd}`;
 }
 
-export function ExamRail() {
+interface ExamRailProps {
+  onNewExamClick: () => void;
+}
+
+export function ExamRail({ onNewExamClick }: ExamRailProps) {
   const tabs = useTabStore((s) => s.tabs);
   const submissions = useTabStore((s) => s.submissions);
   const activeTabId = useTabStore((s) => s.activeTabId);
   const setActiveTab = useTabStore((s) => s.setActiveTab);
-  const addTab = useTabStore((s) => s.addTab);
   const removeTab = useTabStore((s) => s.removeTab);
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -105,7 +108,7 @@ export function ExamRail() {
         <button
           type="button"
           className="g-btn g-btn-md g-btn-outline g-btn-block"
-          onClick={() => addTab()}
+          onClick={onNewExamClick}
         >
           <Plus size={15} />새 시험
         </button>

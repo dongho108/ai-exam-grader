@@ -23,7 +23,11 @@ interface AnswerKeyGroup {
   error?: string;
 }
 
-export function AnswerKeyScanPanelV2() {
+interface AnswerKeyScanPanelV2Props {
+  onCreated?: () => void;
+}
+
+export function AnswerKeyScanPanelV2({ onCreated }: AnswerKeyScanPanelV2Props = {}) {
   const { scanSettings, updateScanSettings } = useScanStore();
   const { addTabFromAnswerKey } = useTabStore();
   const { devices } = useScannerAvailability();
@@ -163,6 +167,7 @@ export function AnswerKeyScanPanelV2() {
 
   const createTabs = () => {
     const ready = groups.filter((g) => g.status === "ready" && g.structure);
+    if (ready.length === 0) return;
     for (const g of ready) {
       addTabFromAnswerKey({
         title: g.title || "New Exam",
@@ -170,6 +175,8 @@ export function AnswerKeyScanPanelV2() {
         structure: g.structure!,
       });
     }
+    setGroups((prev) => prev.filter((g) => g.status !== "ready"));
+    onCreated?.();
   };
 
   const readyCount = groups.filter((g) => g.status === "ready").length;
@@ -438,7 +445,7 @@ export function AnswerKeyScanPanelV2() {
             disabled={readyCount === 0 || analyzingCount > 0}
             onClick={createTabs}
           >
-            탭 생성하기 ({readyCount}개)
+            정답지 생성하기 ({readyCount}개)
           </button>
         </div>
       </div>
