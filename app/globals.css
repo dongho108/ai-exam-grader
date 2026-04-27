@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./wds-styles.css";
 
 @theme {
   --color-background: var(--background);

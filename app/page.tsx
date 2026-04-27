@@ -7,11 +7,13 @@ import { AnswerKeyScanPanel } from "@/features/scanner/components/answer-key-sca
 import { useTabStore, StoreExamSession } from "@/store/use-tab-store";
 import { useAuthStore } from "@/store/use-auth-store";
 import { useScannerStore } from "@/store/use-scanner-store";
+import { useUserPreferencesStore } from "@/store/use-user-preferences-store";
 import { useInitialData } from "@/hooks/use-initial-data";
 import { useAuthInit } from "@/hooks/use-auth-init";
 import { useSessionSync } from "@/hooks/use-session-sync";
 import { resolveFile, evictFile } from "@/lib/file-resolver";
 import { Loader2 } from "lucide-react";
+import { AppShellV2 } from "@/features/v2/app-shell";
 
 /**
  * Resolves the answer key Files for a tab.
@@ -84,6 +86,14 @@ if (typeof window !== 'undefined') {
 }
 
 export default function Home() {
+  const uiVariant = useUserPreferencesStore((s) => s.uiVariant);
+  if (uiVariant === "wds") {
+    return <AppShellV2 />;
+  }
+  return <ClassicHome />;
+}
+
+function ClassicHome() {
   useInitialData();
   useAuthInit();
   useSessionSync();
