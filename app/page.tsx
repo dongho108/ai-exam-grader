@@ -7,11 +7,13 @@ import { AnswerKeyScanPanel } from "@/features/scanner/components/answer-key-sca
 import { useTabStore, StoreExamSession } from "@/store/use-tab-store";
 import { useAuthStore } from "@/store/use-auth-store";
 import { useScannerStore } from "@/store/use-scanner-store";
+import { useUserPreferencesStore } from "@/store/use-user-preferences-store";
 import { useInitialData } from "@/hooks/use-initial-data";
 import { useAuthInit } from "@/hooks/use-auth-init";
 import { useSessionSync } from "@/hooks/use-session-sync";
 import { resolveFile, evictFile } from "@/lib/file-resolver";
 import { Loader2 } from "lucide-react";
+import { AppShellV2 } from "@/features/v2/app-shell";
 
 /**
  * Resolves the answer key Files for a tab.
@@ -84,6 +86,29 @@ if (typeof window !== 'undefined') {
 }
 
 export default function Home() {
+  const uiVariant = useUserPreferencesStore((s) => s.uiVariant);
+  const hydrateUiVariant = useUserPreferencesStore((s) => s.hydrateUiVariant);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    hydrateUiVariant();
+    setMounted(true);
+  }, [hydrateUiVariant]);
+
+  // SSR + 첫 클라이언트 렌더는 빈 스켈레톤으로 통일해 hydration mismatch를
+  // 막는다. ClassicHome을 첫 프레임에 마운트하면 Header의 auto-addTab 효과가
+  // 발동해 wds 사용자에게도 빈 "New Exam" 탭이 누적되는 부작용이 있어서
+  // 마운트 이후에만 실제 화면을 결정한다.
+  if (!mounted) {
+    return <div className="flex flex-col h-screen w-full bg-gray-50 overflow-hidden" />;
+  }
+  if (uiVariant === "wds") {
+    return <AppShellV2 />;
+  }
+  return <ClassicHome />;
+}
+
+function ClassicHome() {
   useInitialData();
   useAuthInit();
   useSessionSync();

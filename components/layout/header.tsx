@@ -13,6 +13,7 @@ import { archiveSession } from "@/lib/persistence-service";
 import { SessionHistoryModal } from "./session-history-modal";
 import { useUserPreferencesStore } from "@/store/use-user-preferences-store";
 import { GradingStrictnessSelector } from "@/components/ui/grading-strictness-selector";
+import { UiVariantToggle } from "@/components/ui/ui-variant-toggle";
 
 export function Header() {
   const { tabs, activeTabId, addTab, setActiveTab, removeTab, updateTabTitle } = useTabStore();
@@ -225,6 +226,7 @@ export function Header() {
 
       {/* Right Side Actions */}
       <div className="ml-4 flex items-center gap-3 shrink-0">
+        <UiVariantToggle />
         <ScannerStatusIndicator />
         {/* Desktop: electron-updater 기반 업데이트 */}
         {isElectron() && updateStatus === 'available' && (
