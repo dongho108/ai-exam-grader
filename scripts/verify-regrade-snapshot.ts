@@ -23,7 +23,22 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { getGradingPrompt } from '../lib/grading-prompts'
-import { SNAPSHOT_RESULTS } from '../lib/__tests__/fixtures/regrade-snapshot'
+import { SNAPSHOT_RESULTS as SNAPSHOT_1 } from '../lib/__tests__/fixtures/regrade-snapshot'
+import { SNAPSHOT_RESULTS_2, SHOULD_FLIP_TO_CORRECT_2, SHOULD_STAY_INCORRECT_2 } from '../lib/__tests__/fixtures/regrade-snapshot-2'
+import { SNAPSHOT_RESULTS_3, SHOULD_FLIP_TO_CORRECT_3, SHOULD_STAY_INCORRECT_3 } from '../lib/__tests__/fixtures/regrade-snapshot-3'
+
+const SNAPSHOT_NAME = process.env.SNAPSHOT || '1'
+const SNAPSHOTS: Record<string, { name: string; data: typeof SNAPSHOT_1; flips?: number[]; stays?: number[] }> = {
+  '1': { name: '#1 (사용자 isEdited 6건)', data: SNAPSHOT_1 },
+  '2': { name: '#2 (다의어 누락 다수)', data: SNAPSHOT_RESULTS_2, flips: SHOULD_FLIP_TO_CORRECT_2, stays: SHOULD_STAY_INCORRECT_2 },
+  '3': { name: '#3 (isEdited 5건 + 다의어 4건)', data: SNAPSHOT_RESULTS_3, flips: SHOULD_FLIP_TO_CORRECT_3, stays: SHOULD_STAY_INCORRECT_3 },
+}
+const selected = SNAPSHOTS[SNAPSHOT_NAME]
+if (!selected) {
+  console.error(`Unknown SNAPSHOT="${SNAPSHOT_NAME}". Use 1, 2, or 3.`)
+  process.exit(1)
+}
+const SNAPSHOT_RESULTS = selected.data
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -138,8 +153,11 @@ function compare(aiResults: AIResult[]) {
   }
 }
 
-function printReport(idx: number, runs: number, diff: ReturnType<typeof compare>) {
-  console.log(`\n=== Run ${idx + 1}/${runs} ===`)
+function printReport(idx: number, runs: number, diff: ReturnType<typeof compare>, aiResults: AIResult[]) {
+  const editedCount = SNAPSHOT_RESULTS.filter(r => r.isEdited).length
+  const wrongCount = SNAPSHOT_RESULTS.filter(r => !r.isCorrect).length
+
+  console.log(`\n=== Run ${idx + 1}/${runs} (스냅샷 ${selected.name}) ===`)
   console.log(`스냅샷 점수: ${diff.oldScore} → 재채점: ${diff.newScore}`)
 
   console.log(`\n[목표 1] 정답 → 오답 뒤집힘: ${diff.flipsToIncorrect.length}건 (목표 0)`)
@@ -147,20 +165,49 @@ function printReport(idx: number, runs: number, diff: ReturnType<typeof compare>
     console.log(`  ❌ ${f.n}. ${f.q} | 정답:"${f.c}" 학생:"${f.s}" | AI: ${f.reason}`)
   }
 
-  console.log(`\n[목표 2] isEdited 6건 자동 정답: ${diff.editedAutoCorrect.length}/6건`)
-  for (const e of diff.editedAutoCorrect) {
-    console.log(`  ✓ ${e.n}. ${e.q} | ${e.reason}`)
-  }
-  for (const e of diff.editedStillIncorrect) {
-    console.log(`  ✗ ${e.n}. ${e.q} | ${e.reason}`)
+  if (editedCount > 0) {
+    console.log(`\n[목표 2] isEdited ${editedCount}건 자동 정답: ${diff.editedAutoCorrect.length}/${editedCount}건`)
+    for (const e of diff.editedAutoCorrect) {
+      console.log(`  ✓ ${e.n}. ${e.q} | ${e.reason}`)
+    }
+    for (const e of diff.editedStillIncorrect) {
+      console.log(`  ✗ ${e.n}. ${e.q} | ${e.reason}`)
+    }
   }
 
-  console.log(`\n[목표 3] 명백 오답 5건 유지: ${diff.wrongStillWrong.length}/5건`)
+  console.log(`\n[목표 3] 스냅샷 오답 ${wrongCount}건 유지: ${diff.wrongStillWrong.length}/${wrongCount}건`)
 
   if (diff.flipsToCorrect.length > 0) {
     console.log(`\n[참고] 오답 → 정답 뒤집힘: ${diff.flipsToCorrect.length}건`)
     for (const f of diff.flipsToCorrect) {
       console.log(`  ⚠ ${f.n}. ${f.q} | 정답:"${f.c}" 학생:"${f.s}" | AI: ${f.reason}`)
+    }
+  }
+
+  // 스냅샷 #2/#3 전용: SHOULD_FLIP_TO_CORRECT / SHOULD_STAY_INCORRECT 검증
+  if (selected.flips || selected.stays) {
+    const byId = new Map(aiResults.map(r => [parseInt(r.id), r]))
+
+    if (selected.flips) {
+      const flipped = selected.flips.filter(n => byId.get(n)?.isCorrect === true)
+      console.log(`\n[기대 1] 다의어/변형 정답 처리: ${flipped.length}/${selected.flips.length}건`)
+      for (const n of selected.flips) {
+        const ai = byId.get(n)
+        const item = SNAPSHOT_RESULTS.find(r => r.questionNumber === n)!
+        const ok = ai?.isCorrect ? '✓' : '✗'
+        console.log(`  ${ok} ${n}. ${item.question} | 정답:"${item.correctAnswer}" 학생:"${item.studentAnswer}" | AI: ${ai?.reason ?? 'N/A'}`)
+      }
+    }
+
+    if (selected.stays) {
+      const stayed = selected.stays.filter(n => byId.get(n)?.isCorrect === false)
+      console.log(`\n[기대 2] 명백 오답 유지: ${stayed.length}/${selected.stays.length}건`)
+      for (const n of selected.stays) {
+        const ai = byId.get(n)
+        const item = SNAPSHOT_RESULTS.find(r => r.questionNumber === n)!
+        const ok = ai?.isCorrect === false ? '✓' : '✗'
+        console.log(`  ${ok} ${n}. ${item.question} | 정답:"${item.correctAnswer}" 학생:"${item.studentAnswer}" | AI: ${ai?.reason ?? 'N/A'}`)
+      }
     }
   }
 }
@@ -177,7 +224,7 @@ async function main() {
     try {
       const aiResults = await gradeOnce()
       const diff = compare(aiResults)
-      printReport(i, runs, diff)
+      printReport(i, runs, diff, aiResults)
 
       for (const f of diff.flipsToIncorrect) {
         aggregate.flipsToIncorrect.set(f.n, (aggregate.flipsToIncorrect.get(f.n) ?? 0) + 1)
@@ -194,18 +241,25 @@ async function main() {
   }
 
   if (runs > 1) {
-    console.log(`\n=== ${runs}회 집계 ===`)
+    const editedNumbers = SNAPSHOT_RESULTS.filter(r => r.isEdited).map(r => r.questionNumber)
+    const wrongNumbers = SNAPSHOT_RESULTS.filter(r => !r.isCorrect).map(r => r.questionNumber)
+
+    console.log(`\n=== ${runs}회 집계 (스냅샷 ${selected.name}) ===`)
     console.log('\n정답→오답 뒤집힘 빈도:')
     for (const [n, count] of [...aggregate.flipsToIncorrect.entries()].sort((a, b) => b[1] - a[1])) {
       console.log(`  ${n}번: ${count}/${runs}회`)
     }
-    console.log('\nisEdited 자동 정답 처리 빈도 (6건 기준):')
-    for (const n of [7, 16, 19, 22, 25, 37]) {
-      const count = aggregate.editedAutoCorrect.get(n) ?? 0
-      console.log(`  ${n}번: ${count}/${runs}회`)
+
+    if (editedNumbers.length > 0) {
+      console.log(`\nisEdited 자동 정답 처리 빈도 (${editedNumbers.length}건 기준):`)
+      for (const n of editedNumbers) {
+        const count = aggregate.editedAutoCorrect.get(n) ?? 0
+        console.log(`  ${n}번: ${count}/${runs}회`)
+      }
     }
-    console.log('\n명백 오답 유지 빈도 (5건 기준):')
-    for (const n of [11, 31, 40, 43, 49]) {
+
+    console.log(`\n스냅샷 오답 유지 빈도 (${wrongNumbers.length}건 기준):`)
+    for (const n of wrongNumbers) {
       const count = aggregate.wrongStillWrong.get(n) ?? 0
       console.log(`  ${n}번: ${count}/${runs}회`)
     }
