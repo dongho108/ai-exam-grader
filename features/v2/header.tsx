@@ -20,12 +20,7 @@ const STRICTNESS_OPTIONS: ReadonlyArray<{
   { id: "lenient", label: "관대", desc: "유사 표현·동의어까지 정답 인정", dot: "var(--g-correct)" },
 ];
 
-interface HeaderV2Props {
-  active: "grade" | "scan";
-  onNavigate: (tab: "grade" | "scan") => void;
-}
-
-export function HeaderV2({ active, onNavigate }: HeaderV2Props) {
+export function HeaderV2() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
@@ -57,22 +52,6 @@ export function HeaderV2({ active, onNavigate }: HeaderV2Props) {
       <div className="g-brand">
         <div className="g-brand-mark">G</div>
         Gradely
-      </div>
-      <div className="g-nav">
-        <button
-          type="button"
-          className={`g-nav-item ${active === "grade" ? "is-active" : ""}`}
-          onClick={() => onNavigate("grade")}
-        >
-          채점
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item ${active === "scan" ? "is-active" : ""}`}
-          onClick={() => onNavigate("scan")}
-        >
-          스캔
-        </button>
       </div>
 
       <div className="g-appbar-right">

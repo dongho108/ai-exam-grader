@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/store/use-auth-store";
 import { useTabStore } from "@/store/use-tab-store";
@@ -9,7 +8,6 @@ import { useAuthInit } from "@/hooks/use-auth-init";
 import { useSessionSync } from "@/hooks/use-session-sync";
 import { HeaderV2 } from "./header";
 import { GradingWorkspaceV2 } from "./grading/grading-workspace-v2";
-import { AnswerKeyScanPanelV2 } from "./scanner/answer-key-scan-panel-v2";
 
 export function AppShellV2() {
   useInitialData();
@@ -20,12 +18,10 @@ export function AppShellV2() {
   const isAuthLoading = useAuthStore((s) => s.isLoading);
   const isInitialLoading = isAuthLoading || isHydrating;
 
-  const [active, setActive] = useState<"grade" | "scan">("grade");
-
   return (
     <div className="wds-theme" style={{ height: "100vh" }}>
       <div className="g-frame">
-      <HeaderV2 active={active} onNavigate={setActive} />
+      <HeaderV2 />
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {isInitialLoading ? (
@@ -69,10 +65,8 @@ export function AppShellV2() {
               </button>
             </div>
           </div>
-        ) : active === "scan" ? (
-          <AnswerKeyScanPanelV2 onCreated={() => setActive("grade")} />
         ) : (
-          <GradingWorkspaceV2 onScanClick={() => setActive("scan")} />
+          <GradingWorkspaceV2 />
         )}
       </div>
       </div>

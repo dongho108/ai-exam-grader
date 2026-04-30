@@ -40,11 +40,7 @@ const PDFViewer = dynamic(
   },
 );
 
-interface GradingWorkspaceV2Props {
-  onScanClick: () => void;
-}
-
-export function GradingWorkspaceV2({ onScanClick }: GradingWorkspaceV2Props) {
+export function GradingWorkspaceV2() {
   const tabs = useTabStore((s) => s.tabs);
   const activeTabId = useTabStore((s) => s.activeTabId);
   const submissions = useTabStore((s) => s.submissions);
@@ -247,52 +243,55 @@ export function GradingWorkspaceV2({ onScanClick }: GradingWorkspaceV2Props) {
           </div>
           <div className="wds-headline2 wds-bold-body">시험을 시작해 보세요</div>
           <p className="wds-caption1" style={{ color: "var(--wds-label-alternative)" }}>
-            좌측 상단에서 새 시험을 추가하거나 답안지 스캔으로 진입하세요.
+            좌측 하단의 <b>새 시험</b> 버튼으로 정답지를 스캔해 시작하세요.
           </p>
         </div>
       </div>
     );
   }
 
-  // For tabs without answer key yet, show scan/upload entry
+  // For tabs without an answer key yet (legacy/persisted edge case), show
+  // a soft prompt back to the new-exam flow on the rail.
   if (activeTab.status === "idle" || activeTab.status === "extracting") {
     return (
-      <div className="g-empty">
-        <div className="g-empty-card">
-          <div className="g-empty-icon">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+      <div className="g-frame-main">
+        <ExamRail />
+        <section className="g-result" style={{ flex: 1 }}>
+          <div className="g-empty">
+            <div className="g-empty-card">
+              <div className="g-empty-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
+              <div className="wds-headline2 wds-bold-body">
+                {activeTab.status === "extracting"
+                  ? "정답지를 분석하는 중..."
+                  : "정답지를 등록해 주세요"}
+              </div>
+              <p className="wds-caption1" style={{ color: "var(--wds-label-alternative)" }}>
+                좌측 하단의 <b>새 시험</b> 버튼으로 정답지를 스캔하세요.
+              </p>
+            </div>
           </div>
-          <div className="wds-headline2 wds-bold-body">
-            {activeTab.status === "extracting"
-              ? "정답지를 분석하는 중..."
-              : "정답지를 등록해 주세요"}
-          </div>
-          <p className="wds-caption1" style={{ color: "var(--wds-label-alternative)" }}>
-            상단의 <b>스캔</b> 탭에서 정답지를 스캔하거나 PDF로 업로드하세요.
-          </p>
-          <button type="button" className="g-btn g-btn-md g-btn-primary" onClick={onScanClick}>
-            스캔 화면으로
-          </button>
-        </div>
+        </section>
       </div>
     );
   }
 
   return (
     <div className="g-frame-main">
-      <ExamRail onNewExamClick={onScanClick} />
+      <ExamRail />
       <SubmissionListV2
         tabId={tabId}
         view={view}
