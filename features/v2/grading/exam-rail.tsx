@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import { useAuthStore } from "@/store/use-auth-store";
 import { useTabStore } from "@/store/use-tab-store";
 import { archiveSession } from "@/lib/persistence-service";
+import { NewExamScanButton } from "./new-exam-scan-button";
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -14,11 +15,7 @@ function formatDate(ts: number): string {
   return `${yyyy}.${mm}.${dd}`;
 }
 
-interface ExamRailProps {
-  onNewExamClick: () => void;
-}
-
-export function ExamRail({ onNewExamClick }: ExamRailProps) {
+export function ExamRail() {
   const tabs = useTabStore((s) => s.tabs);
   const submissions = useTabStore((s) => s.submissions);
   const activeTabId = useTabStore((s) => s.activeTabId);
@@ -105,13 +102,7 @@ export function ExamRail({ onNewExamClick }: ExamRailProps) {
       </div>
 
       <div className="g-rail-foot">
-        <button
-          type="button"
-          className="g-btn g-btn-md g-btn-outline g-btn-block"
-          onClick={onNewExamClick}
-        >
-          <Plus size={15} />새 시험
-        </button>
+        <NewExamScanButton />
       </div>
     </aside>
   );
