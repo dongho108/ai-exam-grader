@@ -31,9 +31,11 @@ export function ExamRail() {
   );
 
   const filteredTabs = useMemo(() => {
-    if (!query.trim()) return visibleTabs;
     const q = query.trim().toLowerCase();
-    return visibleTabs.filter((t) => t.title.toLowerCase().includes(q));
+    const base = q
+      ? visibleTabs.filter((t) => t.title.toLowerCase().includes(q))
+      : visibleTabs;
+    return [...base].sort((a, b) => b.createdAt - a.createdAt);
   }, [visibleTabs, query]);
 
   const handleDelete = (e: React.MouseEvent, tabId: string, title: string) => {
